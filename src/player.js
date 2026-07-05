@@ -1,0 +1,215 @@
+import {
+  GRAVITY_UP, GRAVITY_DOWN, MAX_FALL, RUN_ACCEL, RUN_DECEL, SKID_DECEL, AIR_ACCEL, MAX_RUN,
+  JUMP_VEL, DOUBLE_JUMP_VEL, COYOTE_FRAMES, JUMP_BUFFER_FRAMES,
+  GLITCH_DURATION, INVULN_FRAMES,
+} from './constants.js';
+import { input } from './input.js';
+import { moveAndCollide } from './physics.js';
+import { S } from './sprites.js';
+import { PlayerShot, Particle } from './entities.js';
+import { sfx } from './audio.js';
+
+const SMALL_H = 14;
+const BIG_H = 26;
+
+export class Player {
+  constructor(x, y, power = 'small') {
+    this.w = 10;
+    this.h = power === 'small' ? SMALL_H : BIG_H;
+    this.x = x + 3;
+    this.y = y + 16 - this.h;
+    this.vx = 0; this.vy = 0;
+    this.power = power;
+    this.facing = 1;
+    this.onGround = false;
+    this.coyote = 0;
+    this.jumpBuffer = 0;
+    this.jumps = 0;
+    this.glitchTimer = 0;
+    this.invuln = 0;
+    this.stompGraceEntity = null;
+    this.stompGraceTimer = 0;
+    this.shootCooldown = 0;
+    this.dying = false;
+    this.deathTimer = 0;
+    this.animTime = 0;
+  }
+
+  get cx() { return this.x + this.w / 2; }
+  get cy() { return this.y + this.h / 2; }
+
+  setPower(power) {
+    const feet = this.y + this.h;
+    this.power = power;
+    this.h = power === 'small' ? SMALL_H : BIG_H;
+    this.y = feet - this.h;
+  }
+
+  update(ctx) {
+    const { level, play } = ctx;
+
+    if (this.dying) {
+      this.deathTimer++;
+      this.vy = Math.min(this.vy + GRAVITY_DOWN * 0.6, MAX_FALL);
+      this.y += this.vy;
+      if (this.deathTimer > 90) play.playerDied();
+      return;
+    }
+
+    // --- horizontal input ---
+    const left = input.isHeld('left'), right = input.isHeld('right');
+    const dir = right && !left ? 1 : left && !right ? -1 : 0;
+    if (dir !== 0) {
+      const skidding = this.onGround && dir * this.vx < -1;
+      const accel = (this.onGround ? RUN_ACCEL : AIR_ACCEL) + (skidding ? SKID_DECEL : 0);
+      this.vx = Math.max(-MAX_RUN, Math.min(MAX_RUN, this.vx + dir * accel));
+      this.facing = dir;
+      if (skidding && level.time % 3 === 0) {
+        play.addEntity(new Particle(this.x + (dir > 0 ? 0 : this.w), this.y + this.h - 2,
+          -dir * (0.5 + Math.random()), -0.8 - Math.random(), '#cfd6e0', 16, 2, 0.1));
+      }
+    } else if (this.onGround) {
+      if (this.vx > 0) this.vx = Math.max(0, this.vx - RUN_DECEL);
+      else this.vx = Math.min(0, this.vx + RUN_DECEL);
+    }
+
+    // wind (sky levels)
+    if (level.meta.wind && !this.onGround) {
+      this.vx += Math.sin(level.time * 0.013) * level.meta.wind;
+    }
+    // boss gust attacks push hard; brace by moving against it
+    if (play.gustForce) this.vx += play.gustForce * (this.onGround ? 0.5 : 1);
+
+    // --- jumping ---
+    if (this.onGround) { this.coyote = COYOTE_FRAMES; this.jumps = 0; }
+    else if (this.coyote > 0) this.coyote--;
+
+    if (input.justPressed('jump')) this.jumpBuffer = JUMP_BUFFER_FRAMES;
+    else if (this.jumpBuffer > 0) this.jumpBuffer--;
+
+    if (this.jumpBuffer > 0) {
+      if (this.onGround || this.coyote > 0) {
+        this.vy = JUMP_VEL;
+        this.jumps = 1;
+        this.coyote = 0;
+        this.jumpBuffer = 0;
+        sfx.jump();
+      } else if (this.jumps < 2 && input.justPressed('jump')) {
+        this.vy = DOUBLE_JUMP_VEL;
+        this.jumps = 2;
+        this.jumpBuffer = 0;
+        sfx.doubleJump();
+        for (let i = 0; i < 6; i++) {
+          play.addEntity(new Particle(this.cx, this.y + this.h,
+            (Math.random() - 0.5) * 2, 0.5 + Math.random(), '#dfe8f4', 18, 2, 0.02));
+        }
+      }
+    }
+    // variable jump height: releasing jump cuts ascent into a snappy short hop
+    if (!input.isHeld('jump') && this.vy < -2.0) this.vy = -2.0;
+
+    // --- gravity & tile collision (light going up, heavy coming down) ---
+    const grav = this.vy < 0 && input.isHeld('jump') ? GRAVITY_UP : GRAVITY_DOWN;
+    this.vy = Math.min(this.vy + grav, MAX_FALL);
+    moveAndCollide(this, level, { dropThrough: input.isHeld('down') && input.justPressed('jump') });
+
+    // head bump on blocks
+    if (this.headBumpTile) play.bumpBlock(this.headBumpTile.tx, this.headBumpTile.ty);
+
+    // --- ride solid platform entities ---
+    for (const p of play.platforms) {
+      if (p.dead || !p.solidPlatform) continue;
+      const overX = this.x + this.w > p.x + 2 && this.x < p.x + p.w - 2;
+      const feet = this.y + this.h;
+      if (overX && this.vy >= (p.dy || 0) - 0.01 && feet >= p.y - 1 && feet <= p.y + 9) {
+        this.y = p.y - this.h;
+        this.vy = 0;
+        this.onGround = true;
+        this.jumps = 0;
+        this.x += p.dx || 0;
+        if (p.trigger) p.trigger();
+      }
+    }
+
+    // --- shooting ---
+    if (this.shootCooldown > 0) this.shootCooldown--;
+    if (this.power === 'fire' && input.justPressed('shoot') && this.shootCooldown === 0) {
+      const alive = play.entities.filter(e => e.isShot && !e.dead).length;
+      if (alive < 2) {
+        play.addEntity(new PlayerShot(this.cx + this.facing * 6, this.y + 6, this.facing));
+        this.shootCooldown = 14;
+        sfx.shoot();
+      }
+    }
+
+    // --- timers ---
+    if (this.invuln > 0) this.invuln--;
+    if (this.stompGraceTimer > 0) {
+      this.stompGraceTimer--;
+      if (this.stompGraceTimer === 0) this.stompGraceEntity = null;
+    }
+    if (this.glitchTimer > 0) {
+      this.glitchTimer--;
+      if (this.glitchTimer === 0) sfx.glitchEnd();
+    }
+
+    // --- hazards & falling out ---
+    const hazard = level.hazardAt(this);
+    if (hazard === 'lava') play.killPlayer();
+    else if (hazard === 'spike' && this.glitchTimer <= 0) play.hurtPlayer();
+    if (this.y > level.pxHeight + 24) play.killPlayer();
+
+    this.animTime += Math.abs(this.vx) > 0.3 ? 1 : 0;
+  }
+
+  startDeath() {
+    this.dying = true;
+    this.deathTimer = 0;
+    this.vx = 0;
+    this.vy = -5.2;
+    sfx.die();
+  }
+
+  spriteSet() {
+    if (this.glitchTimer > 0) {
+      const variants = this.power === 'small' ? S.glitchSmall : S.glitchBig;
+      // in the last 3 seconds, flicker back to normal as a warning
+      if (this.glitchTimer < 180 && (this.glitchTimer / 8 | 0) % 2 === 0) {
+        return this.power === 'small' ? S.playerSmall : this.power === 'fire' ? S.playerFire : S.playerBig;
+      }
+      return variants[((performance.now() / 70) | 0) % variants.length];
+    }
+    if (this.power === 'small') return S.playerSmall;
+    if (this.power === 'fire') return S.playerFire;
+    return S.playerBig;
+  }
+
+  draw(g, ox, oy) {
+    if (this.invuln > 0 && this.glitchTimer <= 0 && (this.invuln / 3 | 0) % 2 === 0 && !this.dying) return;
+    const set = this.spriteSet();
+    let spr;
+    if (this.dying) spr = set.jump;
+    else if (!this.onGround) spr = set.jump;
+    else if (Math.abs(this.vx) > 0.3) spr = set.run[((this.animTime / 7) | 0) % 2];
+    else spr = set.idle;
+    const img = this.facing >= 0 ? spr.r : spr.l;
+    const dx = Math.round(this.x + this.w / 2 - img.width / 2 - ox);
+    const dy = Math.round(this.y + this.h - img.height - oy);
+    if (this.dying) {
+      // tumble as we fall
+      g.save();
+      g.translate(dx + img.width / 2, dy + img.height / 2);
+      g.rotate(this.deathTimer * 0.15);
+      g.drawImage(img, -img.width / 2, -img.height / 2);
+      g.restore();
+    } else {
+      g.drawImage(img, dx, dy);
+    }
+    // glitch mode: ghost trail
+    if (this.glitchTimer > 0 && !this.dying) {
+      g.globalAlpha = 0.3;
+      g.drawImage(img, dx - this.facing * 4, dy);
+      g.globalAlpha = 1;
+    }
+  }
+}
