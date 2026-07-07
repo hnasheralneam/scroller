@@ -13,7 +13,7 @@ const g = canvas.getContext('2d');
 function makeGameStub() {
   return {
     coins: 0, totalCoins: 0, lives: 3, power: 'small',
-    save: { unlocked: 14 },
+    save: { unlocked: LEVELS.length - 1 },
     cleared: false, died: 0,
     onLevelCleared() { this.cleared = true; },
     onPlayerDied() { this.died++; },
@@ -27,10 +27,17 @@ for (let i = 0; i < LEVELS.length; i++) {
     let play = new PlayState(gameStub, i);
     let maxX = 0;
     const FRAMES = 1200;
+    const water = !!LEVELS[i].def.meta.water;
     for (let f = 0; f < FRAMES; f++) {
-      // simulated input: run right, hop periodically, double-jump sometimes
-      input.held = { right: true, jump: f % 45 < 12 };
-      input.pressed = (f % 45 === 0 || f % 45 === 8) ? { jump: true } : {};
+      if (water) {
+        // swim right with a steady stroke rhythm
+        input.held = { right: true, jump: f % 18 < 6 };
+        input.pressed = (f % 18 === 0) ? { jump: true } : {};
+      } else {
+        // simulated input: run right, hop periodically, double-jump sometimes
+        input.held = { right: true, jump: f % 45 < 12 };
+        input.pressed = (f % 45 === 0 || f % 45 === 8) ? { jump: true } : {};
+      }
       if (gameStub.cleared) break;
       if (gameStub.died > 0) {
         // respawn like the real Game does
@@ -53,7 +60,8 @@ for (let i = 0; i < LEVELS.length; i++) {
 // state machine spawns a variety of attack entities and the kill path works.
 const NOT_ATTACKS = new Set(['Particle', 'TextPop', 'PlayerShot', 'Coin', 'PowerPickup',
   'Flag', 'Checkpoint', 'MovingPlatform', 'CrumblePlatform', 'Firebar']);
-for (const i of [2, 5, 8, 11, 14]) {
+const BOSS_INDICES = LEVELS.map(({ def }, i) => (def.meta.boss ? i : -1)).filter(i => i >= 0);
+for (const i of BOSS_INDICES) {
   const gameStub = makeGameStub();
   try {
     const play = new PlayState(gameStub, i);
@@ -62,12 +70,12 @@ for (const i of [2, 5, 8, 11, 14]) {
     const origAdd = play.addEntity.bind(play);
     play.addEntity = (e) => { seen.add(e.constructor.name); origAdd(e); };
     let frames = 0;
-    for (let f = 0; f < 4200 && !gameStub.cleared; f++, frames++) {
+    for (let f = 0; f < 5400 && !gameStub.cleared; f++, frames++) {
       input.held = { left: f % 140 < 70, right: f % 140 >= 70, jump: f % 50 < 10 };
       input.pressed = (f % 50 === 0) ? { jump: true } : {};
       play.player.invuln = 9999; // keep the dummy alive so the boss keeps cycling
       if (play.boss) states.add(play.boss.state);
-      if (f > 0 && f % 500 === 0 && play.boss && !play.boss.dying) {
+      if (f > 0 && f % 350 === 0 && play.boss && !play.boss.dying) {
         play.boss.hitInvuln = 0;
         play.boss.takeHit(play.ctx());
       }
@@ -78,7 +86,7 @@ for (const i of [2, 5, 8, 11, 14]) {
     const attackStates = [...states].filter(s => !['intro', 'idle', 'walk', 'hover', 'float'].includes(s));
     // variety = distinct attack entities + distinct attack states
     const variety = new Set([...attacks, ...attackStates]);
-    const ok = variety.size >= 4 && gameStub.cleared;
+    const ok = variety.size >= 5 && gameStub.cleared;
     out.push(`${ok ? 'BOSS-OK' : 'BOSS-FAIL'} L${i} (${LEVELS[i].def.name}): ` +
       `cleared=${gameStub.cleared} in ${frames}f, variety=[${[...variety].join(', ')}]`);
   } catch (err) {
@@ -96,8 +104,11 @@ import('../src/level.js').then(({ Level }) => {
       if (def.map.length !== 15) issues.push(`height=${def.map.length}`);
       const widths = new Set(def.map.map(r => r.length));
       if (widths.size !== 1) issues.push(`ragged widths ${[...widths]}`);
-      const isBoss = i % 3 === 2;
-      if (isBoss && !def.meta.boss) issues.push('boss level missing meta.boss');
+      const isBoss = !!def.meta.boss;
+      // the last level of every world must be its boss arena
+      const lastOfWorld = i + 1 === LEVELS.length || LEVELS[i + 1].world !== world;
+      if (lastOfWorld && !isBoss) issues.push('last level of world is not a boss');
+      if (!lastOfWorld && isBoss) issues.push('boss level is not last in world');
       if (isBoss && !lv.spawns.some(s => s.type === 'X')) issues.push('missing X spawn');
       if (!isBoss && !lv.spawns.some(s => s.type === 'F')) issues.push('missing flag');
       // player start must have solid footing within 4 tiles below

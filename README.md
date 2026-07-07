@@ -26,13 +26,20 @@ python3 -m http.server 8000
 
 ## The game
 
-**5 worlds × 3 levels** (2 regular + 1 boss arena each), in difficulty order:
+**7 worlds × 5 levels** (4 regular + 1 boss arena each), in difficulty order:
 
 1. **Green Meadows** — blobs and hoppers. Boss: **Toad King**
 2. **Crystal Caverns** — dark (light radius around you), bats, falling stalactites, spike-crawlers. Boss: **Crystal Golem**
 3. **Sky Islands** — wind gusts, bottomless pits, cloud turrets. Boss: **Storm Bird**
 4. **The Mainframe** — matrix rain, patrol drones, firewall lasers, proximity mines. Boss: **The Kernel**
-5. **Molten Keep** — lava, firebars, crumbling bridges, fire imps. Boss: **Flame King** (two phases)
+5. **Molten Keep** — lava, firebars, crumbling bridges, fire imps. Boss: **Flame King**
+6. **Jungle Ruins** — dart frogs, howlers, idol turrets. Boss: **Coatl**
+7. **Sunken Depths** — fully underwater (swim physics!), pufferfish, jellyfish, snapperfish, urchins. Boss: **Abyssal Leviathan**
+
+Every boss is a multi-phase fight with an intro sequence and its own attack
+patterns. Between levels you travel a Mario-style scrolling world map. Each
+world has its own procedurally generated chiptune track — pause (Esc / P) to
+adjust music and SFX volume; the settings are saved with your progress.
 
 **Power-ups:**
 - **Berry** — grow big (take one extra hit)
@@ -47,9 +54,10 @@ Checkpoints (small flags) save your respawn point within a level. Progress
 
 ## Dev notes
 
-- `index.html#level=N` jumps straight into level N (0–14).
-- `test/headless.html`, `test/mechanics.html`, `test/reach.html` are headless
-  test pages; dump their DOM with a headless browser to run the smoke tests,
-  mechanics tests, and flag-reachability checks.
+- `index.html#level=N` jumps straight into level N (0–34).
+- `test/headless.html`, `test/mechanics.html`, `test/reach.html`,
+  `test/maptest.html`, and `test/boot.html` are headless test pages; dump
+  their DOM with a headless browser to run the smoke tests, mechanics tests,
+  flag-reachability checks, world-map tests, and a boot smoke test.
 - Level maps are sparse ASCII placements in `src/levels/world*.js`
   (see the legend in `src/level.js`).

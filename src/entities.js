@@ -43,7 +43,6 @@ export class Particle extends Entity {
     if (--this.life <= 0) this.dead = true;
   }
   draw(g, ox, oy) {
-    g.fillStyle = this.color;
     g.fillRect(Math.round(this.x - ox), Math.round(this.y - oy), this.w, this.h);
   }
 }
@@ -188,6 +187,43 @@ export class Checkpoint extends Entity {
     g.lineTo(x + 13, y - 4);
     g.lineTo(x + 4, y);
     g.fill();
+  }
+}
+
+// Underwater checkpoint: an unanchored buoy that bobs on the surface, used in
+// open-water levels where there's no floor to plant a pole into.
+export class FloatingCheckpoint extends Entity {
+  constructor(x, y) {
+    super(x + 5, y, 6, TILE);
+    this.active = false;
+    this.baseY = y;
+    this.bob = Math.random() * Math.PI * 2;
+  }
+  update(ctx) {
+    this.bob += 0.05;
+    this.y = this.baseY + Math.sin(this.bob) * 3;
+    if (!this.active && aabb(this, ctx.player)) {
+      this.active = true;
+      sfx.checkpoint();
+      ctx.play.setCheckpoint(this.x - 4, this.baseY);
+    }
+  }
+  draw(g, ox, oy) {
+    const x = Math.round(this.x - ox), y = Math.round(this.y - oy);
+    // short mast + pennant
+    g.fillStyle = '#8792a3';
+    g.fillRect(x + 2, y - 6, 2, 12);
+    g.fillStyle = this.active ? '#3ecb5a' : '#666';
+    g.beginPath();
+    g.moveTo(x + 4, y - 6);
+    g.lineTo(x + 12, y - 3);
+    g.lineTo(x + 4, y);
+    g.fill();
+    // buoy float riding the surface
+    g.fillStyle = this.active ? '#3ecb5a' : '#c85a3e';
+    g.fillRect(x - 2, y + 6, 10, 5);
+    g.fillStyle = '#e8ecf2';
+    g.fillRect(x - 2, y + 8, 10, 1);
   }
 }
 
@@ -447,7 +483,8 @@ export class EruptColumn extends Entity {
     const gy = Math.round(this.groundY - oy);
     if (this.warn > 0) {
       if ((this.warn / 4 | 0) % 2) {
-        g.fillStyle = this.style === 'crystal' ? 'rgba(180,140,255,0.65)' : 'rgba(255,140,26,0.65)';
+        g.fillStyle = this.style === 'crystal' ? 'rgba(180,140,255,0.65)' :
+        this.style === 'geyser' ? 'rgba(191,230,255,0.7)' : 'rgba(255,140,26,0.65)';
         g.fillRect(bx, gy - 3, this.w, 3);
       }
       return;
@@ -462,6 +499,31 @@ export class EruptColumn extends Entity {
       g.fillRect(bx + 3, gy - h - 3, this.w - 6, 3);
       g.fillStyle = '#fff';
       g.fillRect(bx + 5, gy - h + 2, 1, Math.max(1, h - 6));
+    } else if (this.style === 'vine') {
+      // a whipping thorned vine lashing up from the floor
+      const wig = Math.sin(performance.now() / 90 + this.x) * 2;
+      g.fillStyle = '#2f8a44';
+      g.fillRect(bx + 4 + Math.round(wig * 0.3), gy - h, 4, h);
+      g.fillStyle = '#4ec26a';
+      g.fillRect(bx + 5 + Math.round(wig * 0.5), gy - h, 2, h);
+      // thorns / leaves alternating up the stalk
+      g.fillStyle = '#1c5a2e';
+      for (let i = 4; i < h; i += 6) {
+        const side = (i / 6) % 2 ? 1 : -1;
+        g.fillRect(bx + 6 + side * 3, gy - i, 3, 2);
+      }
+      // barbed tip
+      g.fillStyle = '#8ad98a';
+      g.fillRect(bx + 4 + Math.round(wig), gy - h - 3, 4, 4);
+    } else if (this.style === 'geyser') {
+      // churning column of water and foam
+      const f = ((performance.now() / 60) | 0) % 2;
+      g.fillStyle = '#4a9ad4';
+      g.fillRect(bx + 1, gy - h, this.w - 2, h);
+      g.fillStyle = f ? '#bfe6ff' : '#dff4ff';
+      g.fillRect(bx + 3, gy - h + 2, this.w - 6, Math.max(1, h - 4));
+      g.fillStyle = '#f4fbff';
+      g.fillRect(bx + 2, gy - h - (f ? 3 : 1), this.w - 4, 3);
     } else {
       const f = ((performance.now() / 60) | 0) % 2;
       g.fillStyle = '#e33e1c';

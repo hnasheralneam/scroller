@@ -1,11 +1,13 @@
-const KEY = 'pixel-scroller-save-v1';
+const KEY = 'pixel-scroller-save-v2';
+
+const DEFAULTS = { unlocked: 0, musicVol: 7, sfxVol: 7 };
 
 export function loadSave() {
   try {
     const data = JSON.parse(localStorage.getItem(KEY));
-    if (data && typeof data.unlocked === 'number') return data;
+    if (data && typeof data.unlocked === 'number') return { ...DEFAULTS, ...data };
   } catch (e) { /* corrupted save */ }
-  return { unlocked: 0 };
+  return { ...DEFAULTS };
 }
 
 export function writeSave(data) {

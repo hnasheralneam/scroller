@@ -1,0 +1,6 @@
+bosses have color flickering around them sometimes in second phase
+still have wierd background pixelization thing
+can't step on certain things (temple guards)
+the jungle ruins level has temples and columns in the background, but they are floating in the air
+unsure how to defeat abysal leviathan. invent some creative way (eg destroying all power sources, or have its own attacks strike back, or make it a giant octopus i have to throw sharp things into its mouth when it tries to suck me in)
+squids should flash red, not have a red box flash on top of them when attacking

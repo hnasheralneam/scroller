@@ -81,6 +81,8 @@ const envelope = buildEnvelope();
 for (let i = 0; i < LEVELS.length; i++) {
   const { world, def } = LEVELS[i];
   if (def.meta.boss) { out.push(`SKIP L${i} (boss arena)`); continue; }
+  // water levels use swim physics; the headless clear is the reachability proxy
+  if (def.meta.water) { out.push(`SKIP L${i} (underwater)`); continue; }
   const lv = new Level(def, world, i);
 
   // standable ground cells

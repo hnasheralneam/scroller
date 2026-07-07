@@ -2,6 +2,8 @@ import {
   GRAVITY_UP, GRAVITY_DOWN, MAX_FALL, RUN_ACCEL, RUN_DECEL, SKID_DECEL, AIR_ACCEL, MAX_RUN,
   JUMP_VEL, DOUBLE_JUMP_VEL, COYOTE_FRAMES, JUMP_BUFFER_FRAMES,
   GLITCH_DURATION, INVULN_FRAMES,
+  WATER_GRAVITY, WATER_MAX_SINK, WATER_MAX_RISE, SWIM_VEL, WATER_RUN_MULT,
+  WATER_ACCEL, WATER_DIVE_MAX,
 } from './constants.js';
 import { input } from './input.js';
 import { moveAndCollide } from './physics.js';
@@ -56,13 +58,17 @@ export class Player {
       return;
     }
 
+    const water = !!level.meta.water;
+
     // --- horizontal input ---
     const left = input.isHeld('left'), right = input.isHeld('right');
     const dir = right && !left ? 1 : left && !right ? -1 : 0;
+    const maxRun = water ? MAX_RUN * WATER_RUN_MULT : MAX_RUN;
     if (dir !== 0) {
       const skidding = this.onGround && dir * this.vx < -1;
-      const accel = (this.onGround ? RUN_ACCEL : AIR_ACCEL) + (skidding ? SKID_DECEL : 0);
-      this.vx = Math.max(-MAX_RUN, Math.min(MAX_RUN, this.vx + dir * accel));
+      let accel = (this.onGround ? RUN_ACCEL : AIR_ACCEL) + (skidding ? SKID_DECEL : 0);
+      if (water) accel *= WATER_RUN_MULT;
+      this.vx = Math.max(-maxRun, Math.min(maxRun, this.vx + dir * accel));
       this.facing = dir;
       if (skidding && level.time % 3 === 0) {
         play.addEntity(new Particle(this.x + (dir > 0 ? 0 : this.w), this.y + this.h - 2,
@@ -87,6 +93,31 @@ export class Player {
     if (input.justPressed('jump')) this.jumpBuffer = JUMP_BUFFER_FRAMES;
     else if (this.jumpBuffer > 0) this.jumpBuffer--;
 
+    if (water) {
+      // swim stroke: always available, no coyote/double-jump bookkeeping
+      if (this.jumpBuffer > 0) {
+        this.vy = SWIM_VEL;
+        this.jumpBuffer = 0;
+        this.coyote = 0;
+        sfx.swim();
+        for (let i = 0; i < 4; i++) {
+          play.addEntity(new Particle(this.cx + (Math.random() - 0.5) * 6, this.y + this.h,
+            (Math.random() - 0.5) * 0.6, 0.4 + Math.random() * 0.6, '#bfe6ff', 24, 2, -0.05));
+        }
+      }
+      // ambient bubbles while moving
+      if (level.time % 26 === 0 && (Math.abs(this.vx) > 0.3 || Math.abs(this.vy) > 0.3)) {
+        play.addEntity(new Particle(this.cx, this.y + 2,
+          (Math.random() - 0.5) * 0.3, -0.4, '#dff4ff', 30, 1, -0.02));
+      }
+      // hold down to actively swim downward — a faster accel and a higher
+      // terminal cap than the slow buoyant passive sink.
+      const diving = input.isHeld('down');
+      this.vy = Math.min(this.vy + (diving ? WATER_ACCEL : WATER_GRAVITY),
+                         diving ? WATER_DIVE_MAX : WATER_MAX_SINK);
+      if (this.vy < WATER_MAX_RISE) this.vy = WATER_MAX_RISE;
+      moveAndCollide(this, level, { dropThrough: input.isHeld('down') && input.justPressed('jump') });
+    } else {
     if (this.jumpBuffer > 0) {
       if (this.onGround || this.coyote > 0) {
         this.vy = JUMP_VEL;
@@ -112,6 +143,7 @@ export class Player {
     const grav = this.vy < 0 && input.isHeld('jump') ? GRAVITY_UP : GRAVITY_DOWN;
     this.vy = Math.min(this.vy + grav, MAX_FALL);
     moveAndCollide(this, level, { dropThrough: input.isHeld('down') && input.justPressed('jump') });
+    }
 
     // head bump on blocks
     if (this.headBumpTile) play.bumpBlock(this.headBumpTile.tx, this.headBumpTile.ty);
@@ -184,7 +216,7 @@ export class Player {
     return S.playerBig;
   }
 
-  draw(g, ox, oy) {
+  draw(g, ox, oy, gameTime) {
     if (this.invuln > 0 && this.glitchTimer <= 0 && (this.invuln / 3 | 0) % 2 === 0 && !this.dying) return;
     const set = this.spriteSet();
     let spr;

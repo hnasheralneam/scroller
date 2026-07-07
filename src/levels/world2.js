@@ -43,6 +43,49 @@ export const world2 = [
     }),
   },
   {
+    // Two great chasms crossed on vertical lifts boarded from raised stone
+    // ledges; bats haunt the crossings and stalactites rain from above.
+    name: 'ECHO CHASM',
+    meta: { dark: true },
+    map: mk(130, {
+      0:  [[0, G(130)]],
+      1:  [[0, G(130)]],
+      2:  [[12, 's'], [30, 's'], [46, 's'], [60, 's'], [74, 's'], [92, 's'], [108, 's'], [120, 's']],
+      5:  [[68, '*']],
+      6:  [[20, 'a'], [56, 'a'], [96, 'a']],
+      7:  [[40, 'a'], [80, 'a'], [116, 'a']],
+      8:  [[52, 'oooo'], [124, 'F']],
+      9:  [[8, 'U'], [21, 'V'], [51, '----'], [70, '?'], [72, '?'], [88, 'V'], [112, '1']],
+      10: [[33, 'ooo']],
+      11: [[15, '###'], [33, '###'], [62, 'ooo'], [82, '###'], [100, 'ooo']],
+      12: [[3, 'P'], [12, 'k'], [48, 'k'], [58, 'C'], [66, '^^^'], [84, 'k'], [104, '^^'], [118, 'k']],
+      13: [[0, G(18)], [28, G(28)], [60, G(26)], [94, G(36)]],
+      14: [[0, G(18)], [28, G(28)], [60, G(26)], [94, G(36)]],
+    }),
+  },
+  {
+    // A shard-strewn run: long spike trenches force precise flat jumps while
+    // crawlers patrol the safe strips and bats dive from the dark.
+    name: 'SHARDFALL',
+    meta: { dark: true },
+    map: mk(130, {
+      0:  [[0, G(130)]],
+      1:  [[0, G(130)]],
+      2:  [[10, 's'], [24, 's'], [38, 's'], [52, 's'], [66, 's'], [80, 's'], [94, 's'], [108, 's'], [120, 's']],
+      4:  [[60, '*']],
+      6:  [[28, 'a'], [74, 'a'], [112, 'a']],
+      7:  [[46, 'a'], [96, 'a']],
+      8:  [[36, 'ooo'], [124, 'F']],
+      9:  [[6, 'U'], [35, '#####'], [55, 'ooo'], [78, '?'], [80, '?'], [104, 'M']],
+      10: [[16, 'ooo'], [54, '#####'], [90, 'ooo']],
+      11: [[15, '#####'], [66, 'k'], [89, '#####'], [116, '1']],
+      12: [[3, 'P'], [12, 'k'], [20, '^^^^'], [30, 'k'], [44, '^^^'], [62, 'C'], [70, '^^^^'],
+           [84, 'k'], [93, '^^^'], [107, 'k'], [110, '^^'], [120, 'k']],
+      13: [[0, G(58)], [62, G(38)], [102, G(28)]],
+      14: [[0, G(58)], [62, G(38)], [102, G(28)]],
+    }),
+  },
+  {
     // Crystal pillars for cover (the golem's spin charge crashes into them),
     // a raised center ledge, stalactites overhead.
     name: "GOLEM'S HOLLOW",

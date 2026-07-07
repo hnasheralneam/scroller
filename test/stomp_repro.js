@@ -18,7 +18,7 @@ const game = {
   onPlayerDied() {},
 };
 
-const play = new PlayState(game, 2); // Toad King arena
+const play = new PlayState(game, 4); // Toad King arena
 let framesSinceStomp = Infinity;
 let stompCount = 0;
 let violation = null;

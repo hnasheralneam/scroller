@@ -1,5 +1,6 @@
 import { VIEW_W, GLITCH_DURATION } from './constants.js';
 import { S, drawText, drawTextCentered } from './sprites.js';
+import { LEVELS } from './levels/index.js';
 
 export function drawHud(g, game, play) {
   // top bar backdrop
@@ -17,8 +18,8 @@ export function drawHud(g, game, play) {
   drawText(g, `x${game.lives}`, px + 13, 5, '#fff');
 
   // world - level
-  const w = Math.floor(play.levelIndex / 3) + 1;
-  const l = (play.levelIndex % 3) + 1;
+  const w = LEVELS[play.levelIndex].world + 1;
+  const l = LEVELS[play.levelIndex].li + 1;
   drawTextCentered(g, `${w}-${l}`, VIEW_W / 2, 5, '#fff');
 
   // power state
@@ -36,16 +37,26 @@ export function drawHud(g, game, play) {
     g.fillRect(229, 5, Math.max(1, 58 * frac), 4);
   }
 
-  // boss health
+  // boss health: bordered bar with per-hp tick marks; flashes white on a
+  // fresh hit and shifts color as the boss changes phase.
   const boss = play.boss;
-  if (boss && !boss.dead) {
-    drawTextCentered(g, boss.name, VIEW_W / 2, 20, '#fff');
-    const total = boss.maxHp;
-    const bw = total * 12;
-    const bx = VIEW_W / 2 - bw / 2;
-    for (let i = 0; i < total; i++) {
-      g.fillStyle = i < boss.hp ? '#ff3344' : '#3a3a44';
-      g.fillRect(bx + i * 12, 28, 10, 6);
+  if (boss && !boss.dead && !play.bossIntro) {
+    drawTextCentered(g, boss.name, VIEW_W / 2, 19, '#fff');
+    const bw = 110, bh = 8;
+    const bx = VIEW_W / 2 - bw / 2, by = 28;
+    g.fillStyle = '#0a0a12';
+    g.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+    g.strokeStyle = '#e8ecf4';
+    g.strokeRect(bx - 1.5, by - 1.5, bw + 3, bh + 3);
+    const frac = boss.hp / boss.maxHp;
+    const justHit = boss.hitInvuln > 58;
+    const phaseCols = ['#ff3344', '#ff8c1a', '#ff00ff'];
+    g.fillStyle = justHit ? '#fff' : phaseCols[Math.min(boss.phase - 1, 2)];
+    g.fillRect(bx, by, Math.round(bw * frac), bh);
+    // tick marks per hp
+    g.fillStyle = 'rgba(10,10,18,0.6)';
+    for (let i = 1; i < boss.maxHp; i++) {
+      g.fillRect(bx + Math.round((bw * i) / boss.maxHp), by, 1, bh);
     }
   }
 }

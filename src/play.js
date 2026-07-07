@@ -8,13 +8,14 @@ import { Camera } from './camera.js';
 import { aabb } from './physics.js';
 import { S, drawTextCentered } from './sprites.js';
 import {
-  Coin, PowerPickup, Flag, Checkpoint, MovingPlatform, CrumblePlatform, Firebar,
+  Coin, PowerPickup, Flag, Checkpoint, FloatingCheckpoint, MovingPlatform, CrumblePlatform, Firebar,
   TextPop, Particle, burst,
 } from './entities.js';
 import { ENEMY_FACTORY } from './enemies.js';
 import { BOSS_FACTORY } from './bosses.js';
 import { drawHud } from './hud.js';
 import { sfx } from './audio.js';
+import { music, WORLD_THEMES } from './music.js';
 import { LEVELS } from './levels/index.js';
 
 export class PlayState {
@@ -23,6 +24,7 @@ export class PlayState {
     this.levelIndex = levelIndex;
     const { world, def } = LEVELS[levelIndex];
     this.level = new Level(def, world, levelIndex);
+    music.play(WORLD_THEMES[world]);
     this.entities = [];
     this.boss = null;
     this.checkpoint = respawn;
@@ -30,9 +32,15 @@ export class PlayState {
     this.clearTimer = 0;
     this.introTimer = 110;
     this.windTimer = 0;
+    this.ambientTimer = 0;
+    this.leafTimer = 0;
     this.gustForce = 0; // set by the Storm Bird's gust attack
 
     for (const sp of this.level.spawns) this.spawnFromChar(sp);
+
+    // boss levels open with a short letterboxed intro instead of the banner
+    this.bossIntro = this.boss && !respawn ? 170 : 0;
+    if (this.bossIntro) this.introTimer = 0;
 
     const start = respawn || this.level.playerStart;
     this.player = new Player(start.x, start.y, game.power);
@@ -49,7 +57,7 @@ export class PlayState {
 
   spawnFromChar({ type, x, y }) {
     if (type === 'o') this.addEntity(new Coin(x, y));
-    else if (type === 'C') this.addEntity(new Checkpoint(x, y));
+    else if (type === 'C') this.addEntity(this.level.meta.water ? new FloatingCheckpoint(x, y) : new Checkpoint(x, y));
     else if (type === 'F') this.addEntity(new Flag(x, y, this.level));
     else if (type === 'M') this.addEntity(new MovingPlatform(x, y, false));
     else if (type === 'V') this.addEntity(new MovingPlatform(x, y, true));
@@ -75,6 +83,17 @@ export class PlayState {
   // -------------------------------------------------------------------------
   update() {
     this.level.update();
+    if (this.bossIntro > 0) {
+      // cinematic hold: world keeps animating, nothing moves yet
+      if (this.bossIntro < 160 && (input.justPressed('confirm') || input.justPressed('jump'))) {
+        this.bossIntro = Math.min(this.bossIntro, 8);
+      }
+      if (--this.bossIntro === 0) {
+        music.play('boss');
+        sfx.roar();
+      }
+      return;
+    }
     if (this.introTimer > 0) this.introTimer--;
 
     if (this.clearing) {
@@ -104,12 +123,30 @@ export class PlayState {
     this.entities = this.entities.filter(e => !e.dead);
     this.camera.follow(this.player);
 
+    // boss arena ambience: slow drifting motes in the boss's colors
+    if (this.boss && !this.boss.dead && ++this.ambientTimer % 14 === 0) {
+      const cols = this.boss.deathColors || ['#fff'];
+      this.addEntity(new Particle(
+        this.camera.x + Math.random() * VIEW_W, this.camera.y - 4,
+        (Math.random() - 0.5) * 0.4, 0.3 + Math.random() * 0.5,
+        cols[(Math.random() * cols.length) | 0], 90, 1, 0.002));
+    }
+
     // wind streaks (sky levels)
     if (this.level.meta.wind && ++this.windTimer % 6 === 0) {
       const dir = Math.sin(this.level.time * 0.013);
       this.addEntity(new Particle(
         this.camera.x + Math.random() * VIEW_W, this.camera.y + Math.random() * VIEW_H,
         dir * 3, 0, 'rgba(255,255,255,0.5)', 30, 1, 0));
+    }
+
+    // falling leaves (jungle levels): slow drift, sideways push varies over time
+    if (this.level.world === 5 && ++this.leafTimer % 20 === 0) {
+      const drift = Math.sin(this.level.time * 0.02) * 0.5 + (Math.random() - 0.5) * 0.3;
+      this.addEntity(new Particle(
+        this.camera.x + Math.random() * VIEW_W, this.camera.y - 4,
+        drift, 0.4 + Math.random() * 0.3,
+        Math.random() < 0.5 ? '#4ec26a' : '#2f8a44', 110, 2, 0.001));
     }
   }
 
@@ -126,7 +163,7 @@ export class PlayState {
         continue;
       }
 
-      // enemies (touch)
+      // enemies (touch); standing on a solid-platform enemy is safe.
       if (e.isEnemy && aabb(p, e)) {
         if (glitching && !e.isBoss) {
           e.dead = true;
@@ -155,7 +192,8 @@ export class PlayState {
           p.jumps = 1;
           sfx.bounce();
         } else if (e.harmful && !glitching &&
-            !(p.stompGraceEntity === e && p.stompGraceTimer > 0)) {
+            !(p.stompGraceEntity === e && p.stompGraceTimer > 0) &&
+            !(e.solidPlatform && p.onGround && p.vy >= -0.01 && prevFeet <= e.y + 9)) {
           this.hurtPlayer();
         } else if (e.onTouch && !glitching) {
           e.onTouch(ctx); // e.g. kicking an idle snail shell
@@ -331,8 +369,14 @@ export class PlayState {
     this.level.draw(t, this.camera);
     const ox = this.camera.ox(), oy = this.camera.oy();
     for (const e of this.entities) if (!e.dead && !(e instanceof Particle)) e.draw(t, ox, oy);
-    this.player.draw(t, ox, oy);
+    this.player.draw(t, ox, oy, this.level.time);
     for (const e of this.entities) if (!e.dead && e instanceof Particle) e.draw(t, ox, oy);
+
+    // underwater cast: translucent blue wash over the whole scene
+    if (this.level.meta.water) {
+      t.fillStyle = 'rgba(30,90,170,0.18)';
+      t.fillRect(0, 0, VIEW_W, VIEW_H);
+    }
 
     // caverns darkness
     if (this.level.meta.dark && !glitching) {
@@ -367,11 +411,33 @@ export class PlayState {
     drawHud(g, this.game, this);
 
     if (this.introTimer > 0) {
-      const w = Math.floor(this.levelIndex / 3), l = (this.levelIndex % 3) + 1;
+      const w = LEVELS[this.levelIndex].world, l = LEVELS[this.levelIndex].li + 1;
       g.fillStyle = 'rgba(0,0,0,0.55)';
       g.fillRect(0, 96, VIEW_W, 46);
       drawTextCentered(g, `WORLD ${w + 1}-${l}`, VIEW_W / 2, 106, '#fff', 2);
       drawTextCentered(g, WORLDS[w].name, VIEW_W / 2, 126, WORLDS[w].color);
+    }
+
+    if (this.bossIntro > 0 && this.boss) {
+      const w = LEVELS[this.levelIndex].world;
+      // letterbox bars slide in over the first ~20 frames
+      const slide = Math.min(1, (170 - this.bossIntro) / 20);
+      const barH = Math.round(30 * slide);
+      g.fillStyle = '#000';
+      g.fillRect(0, 0, VIEW_W, barH);
+      g.fillRect(0, VIEW_H - barH, VIEW_W, barH);
+      if (this.bossIntro < 150) {
+        // name card slides in from the right
+        const t = Math.min(1, (150 - this.bossIntro) / 25);
+        const nx = VIEW_W / 2 + (1 - t) * 130;
+        drawTextCentered(g, this.boss.name, nx, 104, WORLDS[w].color, 3);
+        if (this.bossIntro < 120) {
+          drawTextCentered(g, 'VS', nx, 88, '#fff');
+          if ((this.bossIntro / 20 | 0) % 2) {
+            drawTextCentered(g, 'ENTER TO FIGHT', VIEW_W / 2, 136, '#9aa4b5');
+          }
+        }
+      }
     }
 
     if (this.clearing) {

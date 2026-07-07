@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BOOTING</title>
+</head>
+<body>
+<canvas id="game" width="320" height="240"></canvas>
+<div id="log"></div>
+<script>
+  window.__bootErrors = [];
+  window.onerror = (msg, src, line, col) => {
+    window.__bootErrors.push(msg + ' @ ' + src + ':' + line + ':' + col);
+  };
+  window.addEventListener('unhandledrejection', (e) => {
+    window.__bootErrors.push('unhandledrejection: ' + (e.reason && e.reason.message || e.reason));
+  });
+  // Headless chromium under --virtual-time-budget barely ticks rAF, so shim it
+  // and drive the callbacks from a setTimeout loop (virtual time advances timers).
+  const pending = [];
+  window.requestAnimationFrame = (cb) => { pending.push(cb); return pending.length; };
+  let frames = 0;
+  let now = 0;
+  window.__driveFrames = function drive() {
+    now += 1000 / 60;
+    const cbs = pending.splice(0, pending.length);
+    for (const cb of cbs) {
+      try { cb(now); } catch (e) { window.__bootErrors.push('rAF: ' + e.message); }
+    }
+    frames++;
+    if (frames < 300) { setTimeout(drive, 0); return; }
+    const log = document.getElementById('log');
+    if (window.__bootErrors.length === 0) {
+      document.title = 'ALLPASS';
+      log.textContent = 'PASS boot: 300 frames, no errors';
+    } else {
+      document.title = 'FAIL';
+      log.textContent = 'FAIL boot errors:\n' + window.__bootErrors.join('\n');
+    }
+  };
+</script>
+<script type="module" src="../src/main.js"></script>
+<script type="module">
+  // Runs after main.js has been evaluated (module scripts execute in order).
+  window.__driveFrames();
+</script>
+</body>
+</html>

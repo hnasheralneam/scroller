@@ -3,7 +3,10 @@ import { input } from './input.js';
 import { loadSave, writeSave } from './save.js';
 import { PlayState } from './play.js';
 import { TitleState, WorldMapState, LevelClearState, GameOverState, VictoryState } from './screens.js';
-import { drawTextCentered } from './sprites.js';
+import { LEVELS } from './levels/index.js';
+import { PauseMenu } from './pausemenu.js';
+import { setMusicVolume, setSfxVolume, setMusicDuck } from './audio.js';
+import { music } from './music.js';
 
 class Game {
   constructor(canvas) {
@@ -18,7 +21,10 @@ class Game {
     this.g = this.buffer.getContext('2d');
     this.g.imageSmoothingEnabled = false;
     this.save = loadSave();
+    setMusicVolume(this.save.musicVol);
+    setSfxVolume(this.save.sfxVol);
     this.paused = false;
+    this.pauseMenu = new PauseMenu(this);
     this.resetSession();
     this.state = new TitleState(this);
     this.fitCanvas();
@@ -27,12 +33,20 @@ class Game {
 
   fitCanvas() {
     const dpr = window.devicePixelRatio || 1;
+    // Calculate the integer scale factor, accounting for device pixel ratio.
+    // This ensures the buffer (320x240) scales to an integer multiple of itself
+    // when blitted to the canvas, preventing interpolation blur.
     const k = Math.max(1, Math.floor(Math.min(
       window.innerWidth * dpr / VIEW_W, window.innerHeight * dpr / VIEW_H)));
+    // Set canvas internal dimensions to integer multiple of buffer size
     this.canvas.width = VIEW_W * k;
     this.canvas.height = VIEW_H * k;
+    // Set display size to fill window at the calculated scale
+    // CSS pixels = device pixels / dpr
     this.canvas.style.width = `${VIEW_W * k / dpr}px`;
     this.canvas.style.height = `${VIEW_H * k / dpr}px`;
+    // Ensure the blit destination dimensions are integer multiples of source
+    this.bufferScale = k;
     this.screen.imageSmoothingEnabled = false;
   }
 
@@ -56,7 +70,7 @@ class Game {
   onLevelCleared(index) {
     this.save.unlocked = Math.max(this.save.unlocked, index + 1);
     writeSave(this.save);
-    if (index === 14) this.state = new VictoryState(this);
+    if (index === LEVELS.length - 1) this.state = new VictoryState(this);
     else this.state = new LevelClearState(this, index);
   }
 
@@ -69,10 +83,24 @@ class Game {
 
   update() {
     if (this.state instanceof PlayState) {
-      if (input.justPressed('pause')) this.paused = !this.paused;
-      if (this.paused) { input.endFrame(); return; }
-    } else {
+      if (!this.paused && input.justPressed('pause')) {
+        this.paused = true;
+        this.pauseMenu.reset();
+        setMusicDuck(0.5);
+        input.endFrame();
+        return;
+      }
+      if (this.paused) {
+        if (!this.pauseMenu.update()) {
+          this.paused = false;
+          setMusicDuck(1);
+        }
+        input.endFrame();
+        return;
+      }
+    } else if (this.paused) {
       this.paused = false;
+      setMusicDuck(1);
     }
     this.state.update();
     input.endFrame();
@@ -80,24 +108,25 @@ class Game {
 
   draw() {
     this.g.imageSmoothingEnabled = false;
+    this.g.globalAlpha = 1;
+    this.g.globalCompositeOperation = 'source-over';
+    this.g.filter = 'none';
+    this.g.clearRect(0, 0, VIEW_W, VIEW_H);
     this.state.draw(this.g);
-    if (this.paused) {
-      this.g.fillStyle = 'rgba(0,0,0,0.6)';
-      this.g.fillRect(0, 0, VIEW_W, VIEW_H);
-      drawTextCentered(this.g, 'PAUSED', VIEW_W / 2, 110, '#fff', 3);
-      drawTextCentered(this.g, 'ESC TO RESUME', VIEW_W / 2, 140, '#9aa4b5');
-    }
+    if (this.paused) this.pauseMenu.draw(this.g);
     this.screen.imageSmoothingEnabled = false;
+    // Draw buffer to canvas at integer scale. Canvas dimensions are 320*k by 240*k,
+    // so scaling the 320x240 buffer to canvas size is always an integer multiple.
     this.screen.drawImage(this.buffer, 0, 0, this.canvas.width, this.canvas.height);
   }
 }
 
 const game = new Game(document.getElementById('game'));
 
-// Dev shortcut: open index.html#level=7 to jump straight into a level (0-14)
+// Dev shortcut: open index.html#level=7 to jump straight into a level
 const hashLevel = location.hash.match(/^#level=(\d+)$/);
 if (hashLevel) {
-  const idx = Math.min(14, parseInt(hashLevel[1], 10));
+  const idx = Math.min(LEVELS.length - 1, parseInt(hashLevel[1], 10));
   game.save.unlocked = Math.max(game.save.unlocked, idx);
   game.startLevel(idx);
 }

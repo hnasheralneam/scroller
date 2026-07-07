@@ -523,6 +523,78 @@ const FIREBALL = [
   '.ROO.',
 ];
 
+// ---------------------------------------------------------------------------
+// World 6 enemies: Dart Frog, Howler, Idol Turret
+// ---------------------------------------------------------------------------
+const dfrogPal = { G: '#2fae7a', g: '#1c7a52', Y: '#e8c85a', W: '#fff', K: '#111' };
+const DFROG_1 = [
+  '..GGGGGG..',
+  '.GWKGGWKG.',
+  '.GGGGGGGG.',
+  '.GYYYYYYG.',
+  'gGGGGGGGGg',
+  '.gg....gg.',
+  '.ggg..ggg.',
+];
+const DFROG_2 = [
+  '..GGGGGG..',
+  '.GWKGGWKG.',
+  '.GGGGGGGG.',
+  '.GYYYYYYG.',
+  'gGGGGGGGGg',
+  'gGG....GGg',
+  '.g......g.',
+];
+
+const howlPal = { B: '#8a5a2b', b: '#5c3a1a', F: '#e0b088', W: '#fff', K: '#111' };
+const HOWL_1 = [
+  '..BB....BB..',
+  '.BBBB..BBBB.',
+  '.BBFFFFFFBB.',
+  '.BFWKFFWKFB.',
+  '.BFFFFFFFFB.',
+  '.BBFFFFFFBB.',
+  '..BBBBBBBB..',
+  '...b....b...',
+  '..b......b..',
+];
+const HOWL_2 = [
+  'BB........BB',
+  '.BB......BB.',
+  '.BBFFFFFFBB.',
+  '.BFWKFFWKFB.',
+  '.BFFFFFFFFB.',
+  '.BBFFFFFFBB.',
+  '..BBBBBBBB..',
+  '..bb....bb..',
+  '...b....b...',
+];
+
+const idolPal = { S: '#8a9a6a', s: '#566040', T: '#1fb8a6', Y: '#e0a838', R: '#c0392b', K: '#111', W: '#fff' };
+const IDOL = [
+  '.SSSSSSSSSS.',
+  'SSSSSSSSSSSS',
+  'STTTTTTTTTTS',
+  'STWKTTTTWKTS',
+  'STTTTTTTTTTS',
+  'STYYYYYYYYTS',
+  'SSRRRRRRRRSS',
+  'SSsKKKKKKsSS',
+  '.SSsssssSSSS',
+  '..SSSSSSSS..',
+  '..sSSSSSSs..',
+  '...ssssss...',
+];
+
+const dartPal = { G: '#3f8f34', Y: '#b6e05a', W: '#eaffd0' };
+const DART = [
+  '.GGG.',
+  'GGYYG',
+  'GYWYG',
+  'GGYYG',
+  '.GGG.',
+];
+
 const sparkPal = { Y: '#fff2a0', O: '#ffb020', W: '#ffffff' };
 const SPARK = [
   '.OYO.',
@@ -770,6 +842,122 @@ const FLAMEKING = [
   '....rrrrrr......',
 ];
 
+const coatlPal = { T: '#1fb8a6', t: '#12756c', Y: '#e0a838', y: '#a8781c', R: '#c0392b', r: '#8a2820', K: '#111', W: '#fff' };
+const COATL = [
+  '....YRY.........',
+  '...YRYRY........',
+  '..YYRRRYY.......',
+  '..TTTTTTTT......',
+  '.TTTTTTTTTT.....',
+  'TTWKTTTTTTTT....',
+  'TTWKTTTTTTTT....',
+  '.TTTTTTTTTTR....',
+  '.TTRRRRRRRRr....',
+  '..TTTTTTTTT.....',
+  '...tTTTTTt......',
+  '....tTTTt.......',
+  '...tTTTTTt......',
+  '..tTTTTTTTt.....',
+  '..tTTTTTTTt.....',
+  '...ttTTTtt......',
+];
+
+// ---------------------------------------------------------------------------
+// World 7 (Sunken Depths) enemies
+// ---------------------------------------------------------------------------
+const pufferPal = { O: '#e8a13c', o: '#a86c1c', W: '#fff', K: '#111', S: '#f4d488' };
+const PUFFER = [
+  '..OOOOOO..',
+  '.OOOOOOOO.',
+  'OOWKOOOOOO',
+  'OOOOOOOSSO',
+  '.oOOOOOOo.',
+  '..oooooo..',
+];
+const PUFFER_BIG = [
+  '.S..OO..S.',
+  '.OOOOOOOO.',
+  'SOOOOOOOOS',
+  'OOWKOOOOOO',
+  'OOOOOOOOOO',
+  'SOOOOOOOOS',
+  '.OOOOOOOO.',
+  '.S..oo..S.',
+];
+const jellyPal = { P: '#d48ae8', p: '#8a4aa8', W: '#f4e0ff', K: '#111' };
+const JELLY_1 = [
+  '..PPPPPP..',
+  '.PPWWPPPP.',
+  'PPWKPPKPPP',
+  'PPPPPPPPPP',
+  '.p.p.p.p..',
+  '.p.p.p.p..',
+  '..p..p..p.',
+];
+const JELLY_2 = [
+  '..PPPPPP..',
+  '.PPWWPPPP.',
+  'PPWKPPKPPP',
+  'PPPPPPPPPP',
+  '..p.p.p.p.',
+  '..p.p.p.p.',
+  '.p..p..p..',
+];
+const snapperPal = { B: '#4a9ad4', b: '#2c6a9a', W: '#fff', K: '#111', T: '#e8ecf4' };
+const SNAPPER_1 = [
+  '..BBBBBB.b.',
+  '.BBBBBBBBbb',
+  'BWKBBBBBBBb',
+  'BTTBBBBBBbb',
+  '.BBBBBBBB.b',
+  '..bBBBBb...',
+];
+const SNAPPER_2 = [
+  '..BBBBBB.b.',
+  '.BBBBBBBBb.',
+  'BWKBBBBBBbb',
+  'BTTBBBBBBBb',
+  '.BBBBBBBBb.',
+  '..bBBBBb.b.',
+];
+const urchinPal = { K: '#1c1428', k: '#3a2c50', R: '#d44a6a' };
+const URCHIN = [
+  '..k..K..k..',
+  '.k.kKKKk.k.',
+  '..kKKKKKk..',
+  'KKKKRRKKKKK',
+  '..kKKKKKk..',
+  '.k.kKKKk.k.',
+  '..k..K..k..',
+];
+const bubblePal = { B: '#bfe6ff', W: '#f4fbff' };
+const BUBBLE = [
+  '.BBB.',
+  'BWBBB',
+  'BBBBB',
+  '.BBB.',
+];
+
+const leviPal = { T: '#2f7fd4', t: '#1c528a', F: '#54e0c8', f: '#2a9a86', W: '#fff', K: '#111', R: '#d44a6a' };
+const LEVIATHAN = [
+  '....FFF.........',
+  '...FFFFF........',
+  '..TTTTTTTT......',
+  '.TTTTTTTTTTT....',
+  'TTWKTTTTTTTTT...',
+  'TTWKTTTTTTTTTT..',
+  'TTRRTTTTTTTTTT..',
+  '.TTTTTTTTTTTTt..',
+  '..tTTTTTTTTTt...',
+  '...fFFfTTTTt....',
+  '....FF.tTTTTt...',
+  '.......tTTTTTt..',
+  '......tTTTTTt...',
+  '.....tTTTTt.....',
+  '....fFFft.......',
+  '.....FF.........',
+];
+
 // ---------------------------------------------------------------------------
 // Tile skins (procedural, per world) with ground variants + grass fringe
 // ---------------------------------------------------------------------------
@@ -784,6 +972,11 @@ const WORLD_TILE_COLORS = [
     brick: '#1c3626', brickLine: '#39ff7a', brickHi: '#2a5038', plat: '#1f4430', pillar: '#16301f' },
   { top: '#c05a3a', topDark: '#8a3c28', body: '#5c3038', dark: '#40202a', light: '#744048',
     brick: '#7a3c40', brickLine: '#4a2028', brickHi: '#96505a', plat: '#8a4c44', pillar: '#6b3438' },
+  { top: '#4ec26a', topDark: '#2f8a44', body: '#6b7a4a', dark: '#48542f', light: '#8a9a5e',
+    brick: '#8a9a6a', brickLine: '#566040', brickHi: '#a8b884', plat: '#9a7a4a', pillar: '#7a8a5a' },
+  // Sunken Depths: barnacled sandstone ruins under a blue cast
+  { top: '#54b8a0', topDark: '#2f8a7a', body: '#3c5a7a', dark: '#28405c', light: '#4e7094',
+    brick: '#5a7494', brickLine: '#3a4e6b', brickHi: '#7290b0', plat: '#6a84a4', pillar: '#4a6284' },
 ];
 
 function lcg(seed) {
@@ -830,11 +1023,11 @@ export function makeTileSkin(world) {
     g.fillRect(0, 3, 16, 4);
     g.fillStyle = col.topDark;
     for (let i = 0; i < 5; i++) g.fillRect((rnd() * 15) | 0, 5 + ((rnd() * 2) | 0), 1, 1);
-    if (world === 0 || world === 1 || world === 4) {
+    if (world === 0 || world === 1 || world === 4 || world === 5) {
       // blades / rough edge poking up
       for (let x = 0; x < 16; x += 2) {
-        if (rnd() < 0.55) {
-          const h = 1 + ((rnd() * 3) | 0);
+        if (rnd() < (world === 5 ? 0.7 : 0.55)) {
+          const h = 1 + ((rnd() * (world === 5 ? 4 : 3)) | 0);
           g.fillStyle = rnd() < 0.3 ? col.topDark : col.top;
           g.fillRect(x + ((rnd() * 2) | 0), 3 - h, 1, h);
         }
@@ -953,6 +1146,24 @@ function playerBigSet(pal) {
   };
 }
 
+// Small keep for boss nodes on the world map (~16x16)
+const MAPCASTLE = [
+  '..F.............',
+  '..FF............',
+  '..F.............',
+  '..W......W.W.W..',
+  '.WWW.....WWWWW..',
+  '.WwW.....WwWWw..',
+  '.WWW.W.W.WWWWW..',
+  '.WWWWWWWWWWWWW..',
+  '.WwWWwWWWwWWwW..',
+  '.WWWWWDDWWWWWW..',
+  '.WWwWWDdWWwWWW..',
+  '.WWWWWDdWWWWWW..',
+  'WWWWWWDdWWWWWWW.',
+];
+const mapCastlePal = { W: '#c0c0d0', w: '#8a8a9e', D: '#3a2a1a', d: '#241a10', F: '#ff3344' };
+
 function buildAll() {
   const S = {};
 
@@ -979,6 +1190,16 @@ function buildAll() {
   S.imp = [pair(IMP_1, impPal), pair(IMP_2, impPal)];
   S.flame = [makeSprite(FLAME_1, flamePal, 1, true), makeSprite(FLAME_2, flamePal, 1, true)];
   S.fireball = makeSprite(FIREBALL, flamePal, 1, true);
+  S.dfrog = [pair(DFROG_1, dfrogPal), pair(DFROG_2, dfrogPal)];
+  S.howler = [pair(HOWL_1, howlPal), pair(HOWL_2, howlPal)];
+  S.idol = makeSprite(IDOL, idolPal, 1, true);
+  S.dart = makeSprite(DART, dartPal, 1, true);
+  S.puffer = [pair(PUFFER, pufferPal), pair(PUFFER, pufferPal)];
+  S.pufferBig = [pair(PUFFER_BIG, pufferPal), pair(PUFFER_BIG, pufferPal)];
+  S.jelly = [makeSprite(JELLY_1, jellyPal, 1, true), makeSprite(JELLY_2, jellyPal, 1, true)];
+  S.snapper = [pair(SNAPPER_1, snapperPal), pair(SNAPPER_2, snapperPal)];
+  S.urchin = makeSprite(URCHIN, urchinPal, 1, true);
+  S.bubble = makeSprite(BUBBLE, bubblePal, 1, true);
   S.spark = makeSprite(SPARK, sparkPal, 1, true);
   S.shard = makeSprite(SHARD, shardPal, 1, true);
   S.feather = makeSprite(FEATHER, featherPal, 1, true);
@@ -1001,6 +1222,10 @@ function buildAll() {
   S.kernel = makeSprite(KERNEL, kernelPal, 2, true);
   S.kernelHot = makeSprite(KERNEL, { ...kernelPal, G: '#ff3344', g: '#8a1c26' }, 2, true);
   S.flameking = pair(FLAMEKING, fkingPal, 2);
+  S.coatl = pair(COATL, coatlPal, 2);
+  S.leviathan = pair(LEVIATHAN, leviPal, 2);
+
+  S.mapCastle = makeSprite(MAPCASTLE, mapCastlePal, 1, true);
 
   return S;
 }

@@ -20,6 +20,12 @@ export class Boss extends Enemy {
     this.state = 'intro';
     this.timer = 60;
     this.attackNo = 0;
+    // Multi-phase support: thresholds are hp values; crossing one advances
+    // the phase (with a roar + flash) and calls onPhaseChange.
+    this.phase = 1;
+    this.phaseThresholds = [];
+    this.phaseFlash = 0;
+    this.auraColor = 'rgba(255,255,255,0.22)';
   }
 
   takeHit(ctx) {
@@ -36,8 +42,36 @@ export class Boss extends Enemy {
       this.shootable = false;
       ctx.play.gustForce = 0;
       sfx.bossDie();
+    } else {
+      const next = this.phaseThresholds[this.phase - 1];
+      if (next !== undefined && this.hp <= next) {
+        this.phase++;
+        this.phaseFlash = 45;
+        sfx.roar();
+        ctx.play.camera.shake(20, 3);
+        burst(ctx.play, this.cx, this.cy, this.deathColors || ['#fff'], 20, 3, 40);
+        this.onPhaseChange(ctx);
+      }
     }
     return true;
+  }
+
+  onPhaseChange(ctx) {} // per-boss hook
+
+  // Pulsing aura for phase 2+ (and a white flash right after a phase shift).
+  drawAura(g, ox, oy) {
+    if (this.phase <= 1 && this.phaseFlash <= 0) return;
+    // smooth breathing glow — a sine-driven alpha pulse rather than a hard
+    // on/off toggle (the old toggle read as a color-flicker glitch).
+    const pulse = 0.55 + 0.45 * Math.sin(this.animTime * 0.12);
+    g.globalAlpha = this.phaseFlash > 0 ? 1 : pulse;
+    g.fillStyle = this.phaseFlash > 0 ? 'rgba(255,255,255,0.5)' : this.auraColor;
+    // Round the sprite origin once and offset by a constant so the aura edge is
+    // locked a fixed 3px outside the identically-rounded sprite (independent
+    // rounding of x-ox vs. the sprite made the border shimmer by a pixel).
+    const rx = Math.round(this.x - ox), ry = Math.round(this.y - oy);
+    g.fillRect(rx - 3, ry - 3, this.w + 6, this.h + 6);
+    g.globalAlpha = 1;
   }
 
   squash(ctx) { this.takeHit(ctx); }
@@ -61,6 +95,7 @@ export class Boss extends Enemy {
   tick() {
     this.animTime++;
     if (this.hitInvuln > 0) this.hitInvuln--;
+    if (this.phaseFlash > 0) this.phaseFlash--;
   }
 
   skipDraw() {
@@ -109,14 +144,16 @@ export class ToadKing extends Boss {
   constructor(x, y) {
     super(x, y - 14, 28, 28, 4, 'TOAD KING');
     this.deathColors = ['#4ea83e', '#ffd23e'];
-    this.chained = false;
+    this.phaseThresholds = [2];
+    this.auraColor = 'rgba(78,168,62,0.3)';
+    this.chained = 0;
   }
   update(ctx) {
     this.tick();
     if (this.dying) return this.updateDying(ctx);
     const p = ctx.player;
     this.vy = Math.min(this.vy + GRAVITY, MAX_FALL);
-    const enraged = this.hp === 1;
+    const enraged = this.phase >= 2;
 
     if (this.state === 'intro' || this.state === 'idle') {
       this.state = 'idle';
@@ -125,12 +162,14 @@ export class ToadKing extends Boss {
       if (--this.timer <= 0) {
         this.attackNo++;
         const toadlets = ctx.play.entities.filter(e => e.isToadlet && !e.dead).length;
-        if (this.hp <= 2 && toadlets === 0 && this.attackNo % 3 === 0) {
+        if ((enraged || this.hp <= 3) && toadlets === 0 && this.attackNo % 3 === 0) {
           this.state = 'spit';
           this.timer = 34;
+          sfx.warn();
         } else if (this.attackNo % 2 === 0) {
           this.state = 'tongueWarn';
           this.timer = 30;
+          sfx.warn();
         } else {
           this.leap(p, enraged);
         }
@@ -140,6 +179,7 @@ export class ToadKing extends Boss {
         for (const dir of [-1, 1]) {
           ctx.play.addEntity(new Toadlet(this.cx - 5, this.y + 4, dir * 1.6));
         }
+        if (enraged) ctx.play.addEntity(new Toadlet(this.cx - 5, this.y + 2, (Math.sign(p.cx - this.cx) || 1) * 2.2));
         sfx.bounce();
         burst(ctx.play, this.cx, this.y + 8, ['#4ea83e'], 6, 1.6, 20);
         this.state = 'idle';
@@ -154,6 +194,12 @@ export class ToadKing extends Boss {
         const tx = dir > 0 ? this.x + this.w - 4 : this.x + 4 - len;
         ctx.play.addEntity(new LaserBeam(tx, this.y + 10, len,
           { warn: 8, fire: 28, color: '#e0559a', thickness: 8 }));
+        // enraged: a second lash guards its back
+        if (enraged) {
+          const bx = dir > 0 ? this.x + 4 - len : this.x + this.w - 4;
+          ctx.play.addEntity(new LaserBeam(bx, this.y + 10, len,
+            { warn: 22, fire: 28, color: '#e0559a', thickness: 8 }));
+        }
         this.state = 'tongue';
         this.timer = 44;
       }
@@ -169,11 +215,11 @@ export class ToadKing extends Boss {
       sfx.stomp();
       ctx.play.addEntity(new Shockwave(this.x - 6, this.y + this.h, -1));
       ctx.play.addEntity(new Shockwave(this.x + this.w - 4, this.y + this.h, 1));
-      if (enraged && !this.chained) {
-        this.chained = true;      // enrage: immediate second hop
+      if (enraged && this.chained < (this.hp === 1 ? 2 : 1)) {
+        this.chained++;           // enrage: chained follow-up hops
         this.leap(p, true);
       } else {
-        this.chained = false;
+        this.chained = 0;
         this.state = 'idle';
         this.timer = enraged ? 28 : 55;
         this.vx = 0;
@@ -188,6 +234,7 @@ export class ToadKing extends Boss {
   }
   draw(g, ox, oy) {
     if (this.skipDraw()) return;
+    this.drawAura(g, ox, oy);
     const spr = this.facing >= 0 ? S.toadking.r : S.toadking.l;
     // telegraphs: crouch shiver for spit, mouth flash for tongue
     const jx = (this.state === 'tongueWarn' || this.state === 'spit') && (this.animTime / 3 | 0) % 2 ? 1 : 0;
@@ -206,11 +253,13 @@ export class ToadKing extends Boss {
 // ---------------------------------------------------------------------------
 export class CrystalGolem extends Boss {
   constructor(x, y) {
-    super(x, y - 14, 26, 28, 4, 'CRYSTAL GOLEM');
+    super(x, y - 14, 26, 28, 5, 'CRYSTAL GOLEM');
     this.stompable = false;
     this.shootable = false;
     this.exposed = 0;
     this.deathColors = ['#8a7fb8', '#4affd7'];
+    this.phaseThresholds = [2];
+    this.auraColor = 'rgba(74,255,215,0.28)';
   }
   expose(frames) {
     this.exposed = frames;
@@ -235,16 +284,36 @@ export class CrystalGolem extends Boss {
       this.state = 'walk';
       this.facing = Math.sign(p.cx - this.cx) || 1;
       this.vx = 0.4 * this.facing;
+      // Hop over ledges / cover pillars when blocked so the golem can traverse
+      // the whole arena instead of getting pinned against a step.
+      if (this.hitWall && this.onGround) this.vy = -6.5;
       if (--this.timer <= 0) {
         this.attackNo++;
-        const pick = this.attackNo % 4;
-        if (pick === 1) {
+        const pick = this.attackNo % (this.phase >= 2 ? 5 : 4);
+        if (pick === 4) {
+          // phase 2: boulder toss — heavy shards lobbed to both sides while
+          // tremor waves roll out along the floor
+          this.state = 'boulder';
+          this.timer = 46;
+          this.vx = 0;
+          for (const dir of [-1, 1]) {
+            for (let i = 0; i < 2; i++) {
+              ctx.play.addEntity(new HazardShot(this.cx, this.y + 2,
+                dir * (0.8 + i * 0.9), -4.4 + i * 0.8, { gravity: 0.11, sprite: 'shard', life: 340 }));
+            }
+          }
+          ctx.play.addEntity(new Shockwave(this.x - 6, this.y + this.h, -1));
+          ctx.play.addEntity(new Shockwave(this.x + this.w - 4, this.y + this.h, 1));
+          ctx.play.camera.shake(10, 2);
+          sfx.explode();
+        } else if (pick === 1) {
           // shard volley
           this.state = 'volley';
           this.timer = 40;
           this.vx = 0;
           const dir = this.facing;
-          for (let i = 0; i < 3; i++) {
+          const count = this.phase >= 2 ? 5 : 3;
+          for (let i = 0; i < count; i++) {
             ctx.play.addEntity(new HazardShot(this.cx, this.y + 4,
               dir * (1 + i * 0.5), -3 - i * 0.6, { gravity: 0.13, sprite: 'shard', life: 300 }));
           }
@@ -272,11 +341,12 @@ export class CrystalGolem extends Boss {
           this.state = 'spinWarn';
           this.timer = 32;
           this.vx = 0;
+          sfx.warn();
         }
       }
-    } else if (this.state === 'volley' || this.state === 'wave') {
+    } else if (this.state === 'volley' || this.state === 'wave' || this.state === 'boulder') {
       this.vx = 0;
-      if (--this.timer <= 0) { this.state = 'walk'; this.timer = 110; }
+      if (--this.timer <= 0) { this.state = 'walk'; this.timer = this.phase >= 2 ? 85 : 110; }
     } else if (this.state === 'spinWarn') {
       this.vx = 0;
       if (--this.timer <= 0) {
@@ -285,7 +355,7 @@ export class CrystalGolem extends Boss {
         sfx.roar();
       }
     } else if (this.state === 'spin') {
-      this.vx = 3.1 * this.facing;
+      this.vx = (this.phase >= 2 ? 3.6 : 3.1) * this.facing;
     }
 
     moveAndCollide(this, ctx.level);
@@ -315,6 +385,7 @@ export class CrystalGolem extends Boss {
   }
   draw(g, ox, oy) {
     if (this.skipDraw()) return;
+    this.drawAura(g, ox, oy);
     const set = this.exposed > 0 ? S.golemOpen : S.golem;
     const jx = (this.state === 'spinWarn' && (this.animTime / 3 | 0) % 2) ? 1 : 0;
     const roll = this.state === 'spin' ? (this.animTime / 3 | 0) % 2 : 0;
@@ -331,11 +402,13 @@ export class CrystalGolem extends Boss {
 // ---------------------------------------------------------------------------
 export class StormBird extends Boss {
   constructor(x, y) {
-    super(x, y, 28, 20, 4, 'STORM BIRD');
+    super(x, y, 28, 20, 6, 'STORM BIRD');
     this.stompable = false;
     this.hoverY = y - 60;
     this.boltTimer = 110;
     this.deathColors = ['#5a8ad0', '#ffd23e'];
+    this.phaseThresholds = [3];
+    this.auraColor = 'rgba(255,225,74,0.28)';
   }
   update(ctx) {
     this.tick();
@@ -355,11 +428,24 @@ export class StormBird extends Boss {
       }
       if (--this.timer <= 0) {
         this.attackNo++;
-        const pick = this.attackNo % 4;
-        if (pick === 1 || pick === 3) this.startDive(p);
-        else if (pick === 2) { this.state = 'feather'; this.timer = 34; }
+        const pick = this.attackNo % (this.phase >= 2 ? 5 : 4);
+        if (pick === 4) { this.state = 'squall'; this.timer = 40; sfx.warn(); }
+        else if (pick === 1 || pick === 3) this.startDive(p);
+        else if (pick === 2) { this.state = 'feather'; this.timer = 34; sfx.warn(); }
         else { this.state = 'gust'; this.timer = 110; sfx.roar(); }
       }
+    } else if (this.state === 'squall') {
+      // phase 2: a full ring of feathers while the wind keeps pushing
+      this.y += (this.hoverY - 8 - this.y) * 0.1;
+      if (this.timer === 20) {
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + 0.4;
+          ctx.play.addEntity(new HazardShot(this.cx, this.cy,
+            Math.cos(a) * 2.1, Math.sin(a) * 2.1, { sprite: 'feather', life: 240 }));
+        }
+        sfx.shoot();
+      }
+      if (--this.timer <= 0) { this.state = 'hover'; this.timer = 70; }
     } else if (this.state === 'feather') {
       this.facing = Math.sign(p.cx - this.cx) || 1;
       if (this.timer === 17) {
@@ -446,7 +532,8 @@ export class StormBird extends Boss {
       g.fillRect(Math.round(this.cx + Math.cos(a) * 12 - ox), Math.round(this.y - 6 + Math.sin(a) * 3 - oy), 3, 3);
       g.fillRect(Math.round(this.cx + Math.cos(a + 3) * 12 - ox), Math.round(this.y - 6 + Math.sin(a + 3) * 3 - oy), 3, 3);
     } else {
-      const speed = this.state === 'gust' ? 4 : 8;
+      this.drawAura(g, ox, oy);
+      const speed = this.state === 'gust' || this.state === 'squall' ? 4 : 8;
       const f = S.bird[(this.animTime / speed | 0) % 2];
       this.drawSprite(g, this.facing >= 0 ? f.r : f.l, ox, oy);
     }
@@ -459,11 +546,13 @@ export class StormBird extends Boss {
 // ---------------------------------------------------------------------------
 export class Kernel extends Boss {
   constructor(x, y) {
-    super(x, y, 28, 28, 5, 'THE KERNEL');
+    super(x, y, 28, 28, 7, 'THE KERNEL');
     this.stompable = false;
     this.shootable = false;
     this.homeY = y;
     this.deathColors = ['#39ff7a', '#101820'];
+    this.phaseThresholds = [4];
+    this.auraColor = 'rgba(57,255,122,0.3)';
   }
   teleport(ctx) {
     burst(ctx.play, this.cx, this.cy, ['#39ff7a', '#fff'], 12, 2.6, 24, 0.02);
@@ -501,11 +590,16 @@ export class Kernel extends Boss {
         this.attackNo++;
         if (this.attackNo % 4 === 0) {
           this.state = 'overheat';
-          this.timer = 150;
+          this.timer = this.phase >= 2 ? 120 : 150;
           this.stompable = true;
           this.shootable = true;
           this.harmful = false;
           sfx.zap();
+        } else if (this.phase >= 2 && this.attackNo % 4 === 2) {
+          // phase 2: surge — rapid teleport chain, firing a spread each blink
+          this.state = 'surge';
+          this.timer = 90;
+          sfx.warn();
         } else {
           this.teleport(ctx);
           const pick = this.attackNo % 3;
@@ -515,6 +609,11 @@ export class Kernel extends Boss {
               { warn: 55, fire: 30 }));
             ctx.play.addEntity(new LaserBeam(0, ctx.play.camera.y + 26, ctx.level.pxWidth,
               { warn: 55, fire: 90, drift: 0.9 }));
+            // phase 2: a third beam rises from the floor
+            if (this.phase >= 2) {
+              ctx.play.addEntity(new LaserBeam(0, ctx.level.pxHeight - 3 * TILE - 10, ctx.level.pxWidth,
+                { warn: 75, fire: 90, drift: -0.9 }));
+            }
           } else if (pick === 2) {
             // bit barrage: 5 aimed shots in a spread
             const base = Math.atan2(p.cy - this.cy, p.cx - this.cx);
@@ -543,6 +642,19 @@ export class Kernel extends Boss {
           this.timer = Math.max(65, 115 - (this.maxHp - this.hp) * 12);
         }
       }
+    } else if (this.state === 'surge') {
+      this.timer--;
+      if (this.timer % 30 === 0) {
+        this.teleport(ctx);
+        const base = Math.atan2(p.cy - this.cy, p.cx - this.cx);
+        for (let i = -1; i <= 1; i++) {
+          const a = base + i * 0.22;
+          ctx.play.addEntity(new HazardShot(this.cx, this.cy,
+            Math.cos(a) * 2.2, Math.sin(a) * 2.2, { sprite: 'bit', life: 220 }));
+        }
+        sfx.shoot();
+      }
+      if (this.timer <= 0) { this.state = 'float'; this.timer = 80; }
     } else if (this.state === 'overheat') {
       this.vy = Math.min(this.vy + GRAVITY, MAX_FALL);
       moveAndCollide(this, ctx.level);
@@ -565,6 +677,7 @@ export class Kernel extends Boss {
   shot(ctx) { this.squash(ctx); }
   draw(g, ox, oy) {
     if (this.skipDraw()) return;
+    this.drawAura(g, ox, oy);
     const spr = this.state === 'overheat' ? S.kernelHot : S.kernel;
     const jx = this.state === 'overheat' ? 0 : ((Math.random() * 2 - 1) * 1.2) | 0;
     this.drawSprite(g, spr, ox, oy, jx, 0);
@@ -577,24 +690,18 @@ export class Kernel extends Boss {
 // ---------------------------------------------------------------------------
 export class FlameKing extends Boss {
   constructor(x, y) {
-    super(x, y - 14, 28, 28, 5, 'FLAME KING');
+    super(x, y - 14, 28, 28, 8, 'FLAME KING');
     this.attackTimer = 100;
     this.emberTimer = 40;
     this.trailTimer = 0;
-    this.phase = 1;
+    this.phaseThresholds = [4];
+    this.auraColor = 'rgba(255,140,26,0.25)';
     this.deathColors = ['#e33e1c', '#ffe14a'];
   }
   update(ctx) {
     this.tick();
     if (this.dying) return this.updateDying(ctx);
     const p = ctx.player;
-
-    if (this.phase === 1 && this.hp <= 2) {
-      this.phase = 2;
-      sfx.roar();
-      ctx.play.camera.shake(20, 3);
-      burst(ctx.play, this.cx, this.cy, ['#ff8c1a', '#ffe14a'], 20, 3, 40);
-    }
 
     this.vy = Math.min(this.vy + GRAVITY, MAX_FALL);
 
@@ -616,6 +723,9 @@ export class FlameKing extends Boss {
         this.attackTimer = this.phase === 2 ? 70 : 110;
         this.vx = 0;
       }
+    } else if (this.state === 'nova') {
+      this.vx = 0;
+      if (--this.timer <= 0) { this.state = 'walk'; this.attackTimer = 70; }
     } else {
       // default: stalk the player
       this.state = 'walk';
@@ -626,8 +736,21 @@ export class FlameKing extends Boss {
       if (--this.attackTimer <= 0) {
         this.attackTimer = this.phase === 2 ? 75 : 120;
         this.attackNo++;
-        const pick = this.attackNo % 4;
-        if (pick === 1) {
+        const pick = this.attackNo % (this.phase >= 2 ? 5 : 4);
+        if (pick === 4) {
+          // phase 2: fire nova — a ring of fireballs bursting outward
+          this.state = 'nova';
+          this.timer = 40;
+          this.vx = 0;
+          for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2;
+            ctx.play.addEntity(new HazardShot(this.cx, this.cy,
+              Math.cos(a) * 1.9, Math.sin(a) * 1.9 - 0.6,
+              { gravity: 0.05, sprite: 'fireball', life: 260 }));
+          }
+          ctx.play.camera.shake(10, 2);
+          sfx.explode();
+        } else if (pick === 1) {
           // 3-way fireball spread
           for (const [vx, vy] of [[1.8, -2.2], [1.2, -3.2], [0.5, -3.8]]) {
             ctx.play.addEntity(new HazardShot(this.cx, this.y + 6, vx * this.facing, vy,
@@ -654,13 +777,14 @@ export class FlameKing extends Boss {
         } else {
           this.state = 'dashWarn';
           this.timer = 36;
+          sfx.warn();
         }
       }
     }
 
     moveAndCollide(this, ctx.level);
 
-    if (this.phase === 2 && --this.emberTimer <= 0) {
+    if (this.phase >= 2 && --this.emberTimer <= 0) {
       this.emberTimer = 60;
       const ex = p.cx + (Math.random() - 0.5) * 120;
       ctx.play.addEntity(new HazardShot(ex, ctx.play.camera.y - 8, 0, 1.2,
@@ -670,13 +794,369 @@ export class FlameKing extends Boss {
   draw(g, ox, oy) {
     if (this.skipDraw()) return;
     const spr = this.facing >= 0 ? S.flameking.r : S.flameking.l;
-    if ((this.phase === 2 || this.state === 'dashWarn' || this.state === 'dash') &&
-        (this.animTime / 4 | 0) % 2) {
+    if (this.phase >= 2 || this.state === 'dashWarn' || this.state === 'dash') {
+      g.globalAlpha = 0.55 + 0.45 * Math.sin(this.animTime * 0.12);
       g.fillStyle = 'rgba(255,140,26,0.25)';
-      g.fillRect(Math.round(this.x - 3 - ox), Math.round(this.y - 3 - oy), this.w + 6, this.h + 6);
+      const rx = Math.round(this.x - ox), ry = Math.round(this.y - oy);
+      g.fillRect(rx - 3, ry - 3, this.w + 6, this.h + 6);
+      g.globalAlpha = 1;
     }
     const jx = this.state === 'dashWarn' && (this.animTime / 3 | 0) % 2 ? 1 : 0;
     this.drawSprite(g, spr, ox, oy, jx, 0);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// World 6 boss: Coatl — a coiled feathered serpent idol come to life.
+// Slithers and leaps, spits venom, raises whipping vines, and in its second
+// phase coil-charges and lashes with its tail. Two phases.
+// ---------------------------------------------------------------------------
+export class Coatl extends Boss {
+  constructor(x, y) {
+    super(x, y - 14, 28, 28, 9, 'COATL');
+    this.attackTimer = 90;
+    this.chained = 0;
+    this.rainTimer = 60;
+    this.phaseThresholds = [6, 3];
+    this.auraColor = 'rgba(31,184,166,0.25)';
+    this.deathColors = ['#1fb8a6', '#e0a838'];
+  }
+  update(ctx) {
+    this.tick();
+    if (this.dying) return this.updateDying(ctx);
+    const p = ctx.player;
+
+    this.vy = Math.min(this.vy + GRAVITY, MAX_FALL);
+
+    if (this.state === 'leapWarn') {
+      this.vx = 0;
+      if (--this.timer <= 0) this.leap(p);
+    } else if (this.state === 'leap') {
+      // airborne — landing handled after moveAndCollide
+    } else if (this.state === 'dashWarn') {
+      this.vx = 0;
+      if (--this.timer <= 0) {
+        this.state = 'dash';
+        this.timer = 70;
+        this.facing = Math.sign(p.cx - this.cx) || 1;
+        sfx.roar();
+      }
+    } else if (this.state === 'dash') {
+      this.vx = 3.5 * this.facing;
+      if (--this.timer <= 0 || this.hitWall) {
+        this.state = 'slither';
+        this.attackTimer = this.phase >= 2 ? 65 : 105;
+        this.vx = 0;
+      }
+    } else if (this.state === 'lashWarn') {
+      this.vx = 0;
+      if (--this.timer <= 0) {
+        const dir = this.facing;
+        const len = TILE * 8;
+        const tx = dir > 0 ? this.x + this.w - 4 : this.x + 4 - len;
+        ctx.play.addEntity(new LaserBeam(tx, this.y + this.h - 8, len,
+          { warn: 10, fire: 30, color: '#e0a838', thickness: 7 }));
+        this.state = 'lash';
+        this.timer = 40;
+        sfx.roar();
+      }
+    } else if (this.state === 'lash') {
+      this.vx = 0;
+      if (--this.timer <= 0) { this.state = 'slither'; this.attackTimer = this.phase >= 2 ? 55 : 90; }
+    } else {
+      // default: slither toward the player
+      this.state = 'slither';
+      const speed = this.phase >= 2 ? 0.8 : 0.5;
+      this.facing = Math.sign(p.cx - this.cx) || 1;
+      this.vx = speed * this.facing;
+
+      if (--this.attackTimer <= 0) {
+        this.attackTimer = this.phase >= 3 ? 55 : this.phase >= 2 ? 70 : 115;
+        this.attackNo++;
+        // phase 1 rotates 3 attacks; phase 2 unlocks dash + tail lash
+        const pick = this.attackNo % (this.phase >= 2 ? 5 : 3);
+        if (pick === 0) {
+          // 3-way venom spit
+          for (const [vx, vy] of [[1.9, -2.0], [1.3, -3.0], [0.6, -3.6]]) {
+            ctx.play.addEntity(new HazardShot(this.cx, this.y + 6, vx * this.facing, vy,
+              { gravity: 0.14, sprite: 'dart', life: 320 }));
+          }
+          sfx.shoot();
+        } else if (pick === 1) {
+          // whipping vines march toward the player
+          const dir = Math.sign(p.cx - this.cx) || 1;
+          const groundY = ctx.level.pxHeight - 3 * TILE;
+          for (let i = 0; i < 5; i++) {
+            const ex = this.cx + dir * (28 + i * 30);
+            if (ex < 8 || ex > ctx.level.pxWidth - 8) break;
+            ctx.play.addEntity(new EruptColumn(ex, groundY, 40,
+              { warn: 26 + i * 10, active: 44, style: 'vine' }));
+          }
+          sfx.shoot();
+        } else if (pick === 3) {
+          // coil-charge dash across the arena
+          this.state = 'dashWarn';
+          this.timer = 34;
+        } else if (pick === 4) {
+          // tail lash: a long low beam raking the arena floor
+          this.state = 'lashWarn';
+          this.timer = 30;
+        } else {
+          // slam leap: tremor shockwaves on landing
+          this.state = 'leapWarn';
+          this.timer = 26;
+        }
+      }
+    }
+
+    moveAndCollide(this, ctx.level);
+
+    // phase 3 desperation: venom rains from the canopy
+    if (this.phase >= 3 && --this.rainTimer <= 0) {
+      this.rainTimer = 55;
+      const ex = p.cx + (Math.random() - 0.5) * 110;
+      ctx.play.addEntity(new HazardShot(ex, ctx.play.camera.y - 8, 0, 1.3,
+        { gravity: 0.1, sprite: 'dart', life: 300 }));
+    }
+
+    if (this.state === 'leap' && this.onGround) {
+      ctx.play.camera.shake(14, 3);
+      sfx.stomp();
+      ctx.play.addEntity(new Shockwave(this.x - 6, this.y + this.h, -1));
+      ctx.play.addEntity(new Shockwave(this.x + this.w - 4, this.y + this.h, 1));
+      if (this.phase >= 2 && this.chained < (this.phase >= 3 ? 2 : 1)) {
+        this.chained++;
+        this.leap(p);
+      } else {
+        this.chained = 0;
+        this.state = 'slither';
+        this.attackTimer = this.phase >= 2 ? 50 : 90;
+        this.vx = 0;
+      }
+    }
+  }
+  leap(p) {
+    this.state = 'leap';
+    this.vy = -5.6;
+    this.vx = (Math.sign(p.cx - this.cx) || 1) * (this.phase >= 2 ? 2.0 : 1.4);
+    sfx.bounce();
+  }
+  draw(g, ox, oy) {
+    if (this.skipDraw()) return;
+    const spr = this.facing >= 0 ? S.coatl.r : S.coatl.l;
+    if (this.phase >= 2 || this.state === 'dash' || this.state === 'dashWarn') {
+      g.globalAlpha = 0.55 + 0.45 * Math.sin(this.animTime * 0.12);
+      g.fillStyle = 'rgba(31,184,166,0.25)';
+      const rx = Math.round(this.x - ox), ry = Math.round(this.y - oy);
+      g.fillRect(rx - 3, ry - 3, this.w + 6, this.h + 6);
+      g.globalAlpha = 1;
+    }
+    const jx = (this.state === 'leapWarn' || this.state === 'dashWarn' || this.state === 'lashWarn') &&
+      (this.animTime / 3 | 0) % 2 ? 1 : 0;
+    this.drawSprite(g, spr, ox, oy, jx, 0);
+    if (this.state === 'lashWarn' && (this.animTime / 4 | 0) % 2) {
+      g.fillStyle = '#e0a838';
+      g.fillRect(Math.round(this.facing > 0 ? this.x + this.w - 6 - ox : this.x + 2 - ox),
+        Math.round(this.y + this.h - 8 - oy), 4, 6);
+    }
+  }
+}
+
+// Final boss: a sea serpent that swims figure-eights through the flooded
+// arena. Bubble volleys, a vortex that drags the player in, urchin mines,
+// and from phase 2 a telegraphed charge sweep that leaves its head stunned
+// and stompable. Phase 3 adds geysers erupting from the arena floor.
+export class AbyssalLeviathan extends Boss {
+  constructor(x, y) {
+    super(x, y, 30, 26, 10, 'ABYSSAL LEVIATHAN');
+    this.stompable = false;
+    this.cx0 = x;      // orbit center, set properly on first update
+    this.cy0 = y - 40;
+    this.t = 0;
+    this.deathColors = ['#2f7fd4', '#54e0c8'];
+    this.phaseThresholds = [7, 3];
+    this.auraColor = 'rgba(84,224,200,0.28)';
+    this.orbitInit = false;
+    this.geyserTimer = 0;
+  }
+  onPhaseChange(ctx) {
+    if (this.phase === 3) this.geyserTimer = 90;
+    this.state = 'swim';
+    this.timer = 50;
+    ctx.play.gustForce = 0;
+  }
+  swimOrbit(speed) {
+    // figure-eight (Lissajous) path around the arena center
+    this.t += speed;
+    this.x = this.cx0 + Math.sin(this.t) * 70 - this.w / 2;
+    this.y = this.cy0 + Math.sin(this.t * 2) * 28 - this.h / 2;
+    this.facing = Math.cos(this.t) >= 0 ? 1 : -1;
+  }
+  update(ctx) {
+    this.tick();
+    if (this.dying) return this.updateDying(ctx);
+    const p = ctx.player;
+    const lv = ctx.level;
+
+    if (!this.orbitInit) {
+      this.orbitInit = true;
+      this.cx0 = lv.pxWidth / 2;
+      this.cy0 = lv.pxHeight / 2 - 12;
+    }
+
+    // phase 3: periodic floor geysers at the arena edges
+    if (this.phase >= 3 && --this.geyserTimer <= 0) {
+      this.geyserTimer = 150;
+      const gx = Math.random() < 0.5 ? 3 * TILE : lv.pxWidth - 4 * TILE;
+      ctx.play.addEntity(new EruptColumn(gx, lv.pxHeight - 2 * TILE, 6 * TILE, { warn: 50, style: 'geyser' }));
+      sfx.warn();
+    }
+
+    if (this.state === 'intro') { this.state = 'swim'; this.timer = 80; }
+
+    if (this.state === 'swim') {
+      this.swimOrbit(0.022 + (this.phase - 1) * 0.006);
+      if (--this.timer <= 0) {
+        this.attackNo++;
+        const pick = this.attackNo % (this.phase >= 2 ? 4 : 3);
+        if (pick === 1) { this.state = 'volley'; this.timer = 40; sfx.warn(); }
+        else if (pick === 2) { this.state = 'vortex'; this.timer = 130; sfx.roar(); }
+        else if (pick === 3) { this.state = 'chargeWarn'; this.timer = 46; sfx.warn(); }
+        else { this.state = 'mines'; this.timer = 36; sfx.warn(); }
+      }
+    } else if (this.state === 'volley') {
+      // spread of bubbles aimed at the player
+      this.swimOrbit(0.012);
+      if (this.timer === 20) {
+        const base = Math.atan2(p.cy - this.cy, p.cx - this.cx);
+        const n = this.phase >= 2 ? 5 : 3;
+        for (let i = 0; i < n; i++) {
+          const a = base + (i - (n - 1) / 2) * 0.28;
+          ctx.play.addEntity(new HazardShot(this.cx, this.cy,
+            Math.cos(a) * 1.9, Math.sin(a) * 1.9, { sprite: 'bubble', life: 260, dieOnTiles: false }));
+        }
+        sfx.shoot();
+      }
+      if (--this.timer <= 0) { this.state = 'swim'; this.timer = 80; }
+    } else if (this.state === 'vortex') {
+      // hold near center and drag the player toward the maw
+      this.x += (this.cx0 - this.w / 2 - this.x) * 0.06;
+      this.y += (this.cy0 - this.h / 2 - this.y) * 0.06;
+      this.facing = Math.sign(p.cx - this.cx) || 1;
+      const dir = Math.sign(this.cx - p.cx) || 1;
+      ctx.play.gustForce = dir * 0.11;
+      if (this.animTime % 4 === 0) {
+        ctx.play.addEntity(new Particle(
+          p.cx - dir * 30 + (Math.random() - 0.5) * 20, p.cy + (Math.random() - 0.5) * 30,
+          dir * (1.8 + Math.random()), (Math.random() - 0.5) * 0.4,
+          'rgba(191,230,255,0.7)', 22, 1, 0));
+      }
+      if (--this.timer <= 0) {
+        ctx.play.gustForce = 0;
+        this.state = 'swim';
+        this.timer = 70;
+      }
+    } else if (this.state === 'mines') {
+      // release drifting urchin mines
+      if (this.timer === 18) {
+        const n = this.phase >= 3 ? 3 : 2;
+        for (let i = 0; i < n; i++) {
+          const mx = this.cx - 8 + (i - (n - 1) / 2) * 40;
+          const my = Math.min(lv.pxHeight - 3 * TILE, this.cy + 20);
+          ctx.play.addEntity(new LeviMine(mx, my));
+        }
+        sfx.shoot();
+      }
+      this.swimOrbit(0.012);
+      if (--this.timer <= 0) { this.state = 'swim'; this.timer = 90; }
+    } else if (this.state === 'chargeWarn') {
+      // line up at one side, flashing, then sweep across
+      const side = p.cx < lv.pxWidth / 2 ? lv.pxWidth - 3 * TILE - this.w : 3 * TILE;
+      this.x += (side - this.x) * 0.1;
+      this.y += (p.cy - this.h / 2 - this.y) * 0.08;
+      this.facing = Math.sign(p.cx - this.cx) || 1;
+      if (--this.timer <= 0) {
+        this.state = 'charge';
+        this.timer = 90;
+        this.chargeVx = this.facing * 3.4;
+        sfx.roar();
+      }
+    } else if (this.state === 'charge') {
+      this.x += this.chargeVx;
+      this.y += Math.sin(this.animTime * 0.2) * 0.8;
+      if (this.animTime % 3 === 0) {
+        ctx.play.addEntity(new Particle(this.cx - this.facing * 14, this.cy + (Math.random() - 0.5) * 16,
+          -this.facing * 1.2, (Math.random() - 0.5) * 0.6, '#bfe6ff', 20, 2, -0.02));
+      }
+      if (this.x < 2 * TILE || this.x + this.w > lv.pxWidth - 2 * TILE || --this.timer <= 0) {
+        // slams the wall: head stunned and stompable
+        this.state = 'stunned';
+        this.timer = 130;
+        this.stompable = true;
+        this.harmful = false;
+        ctx.play.camera.shake(14, 3);
+        sfx.stomp();
+        burst(ctx.play, this.cx, this.cy, ['#bfe6ff', '#2f7fd4'], 10, 2.2, 28);
+      }
+    } else if (this.state === 'stunned') {
+      this.y += Math.sin(this.animTime * 0.08) * 0.3;
+      if (--this.timer <= 0) {
+        this.state = 'swim';
+        this.timer = 90;
+        this.stompable = false;
+        this.harmful = true;
+        // re-sync the orbit to the current position
+        this.t = 0;
+      }
+    }
+  }
+  squash(ctx) {
+    if (this.takeHit(ctx)) {
+      this.state = 'swim';
+      this.timer = 90;
+      this.stompable = false;
+      this.harmful = true;
+      this.t = 0;
+    }
+  }
+  draw(g, ox, oy) {
+    if (this.skipDraw()) return;
+    this.drawAura(g, ox, oy);
+    const spr = this.facing >= 0 ? S.leviathan.r : S.leviathan.l;
+    const jx = (this.state === 'chargeWarn' || this.state === 'volley') &&
+      (this.animTime / 3 | 0) % 2 ? 1 : 0;
+    this.drawSprite(g, spr, ox, oy, jx, 0);
+    if (this.state === 'stunned') {
+      g.fillStyle = '#ffe14a';
+      const a = this.animTime * 0.15;
+      g.fillRect(Math.round(this.cx + Math.cos(a) * 14 - ox), Math.round(this.y - 6 + Math.sin(a) * 3 - oy), 3, 3);
+    }
+  }
+}
+
+// A drifting spiked mine dropped by the Leviathan: sinks slowly, pops after a
+// while or when shot.
+export class LeviMine extends Enemy {
+  constructor(x, y) {
+    super(x, y, 10, 10);
+    this.stompable = false;
+    this.life = 420;
+    this.t = Math.random() * Math.PI * 2;
+    this.deathColors = ['#3a2c50', '#d44a6a'];
+  }
+  update(ctx) {
+    this.animTime++;
+    this.t += 0.04;
+    this.y += 0.15;
+    this.x += Math.sin(this.t) * 0.3;
+    if (--this.life <= 0 || this.y > ctx.level.pxHeight - 2 * TILE) {
+      this.dead = true;
+      burst(ctx.play, this.cx, this.cy, this.deathColors, 8, 1.8, 24);
+    }
+  }
+  draw(g, ox, oy) {
+    const pulse = (this.animTime / 8 | 0) % 2;
+    this.drawSprite(g, S.urchin, ox, oy - pulse);
   }
 }
 
@@ -686,4 +1166,6 @@ export const BOSS_FACTORY = {
   bird: StormBird,
   kernel: Kernel,
   flameking: FlameKing,
+  coatl: Coatl,
+  leviathan: AbyssalLeviathan,
 };

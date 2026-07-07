@@ -26,6 +26,15 @@ export const STOMP_BOUNCE = -6.5;
 export const COYOTE_FRAMES = 6;
 export const JUMP_BUFFER_FRAMES = 6;
 
+// Underwater physics (levels with meta.water)
+export const WATER_GRAVITY = 0.10;
+export const WATER_MAX_SINK = 1.4;   // terminal sink speed
+export const WATER_MAX_RISE = -3.4;  // upward speed clamp
+export const SWIM_VEL = -3.1;        // one swim stroke
+export const WATER_RUN_MULT = 0.85;  // horizontal speed factor
+export const WATER_ACCEL = 0.18;
+export const WATER_DIVE_MAX = 2.4;   // active downward-swim terminal speed
+
 export const GLITCH_DURATION = 600;   // 10s at 60Hz
 export const INVULN_FRAMES = 90;
 export const COINS_PER_LIFE = 100;
@@ -52,4 +61,6 @@ export const WORLDS = [
   { name: 'SKY ISLANDS',     color: '#6fd7ff' },
   { name: 'THE MAINFRAME',   color: '#00ff66' },
   { name: 'MOLTEN KEEP',     color: '#ff5a30' },
+  { name: 'JUNGLE RUINS',    color: '#1fb8a6' },
+  { name: 'SUNKEN DEPTHS',   color: '#2f7fd4' },
 ];

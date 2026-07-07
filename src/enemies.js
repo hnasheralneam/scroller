@@ -522,10 +522,244 @@ export class LavaBubble extends Enemy {
   }
 }
 
+// --- World 6: Jungle Ruins -------------------------------------------------
+// A poison dart frog: sits still, then hops toward the player in short arcs.
+export class DartFrog extends Enemy {
+  constructor(x, y) {
+    super(x + 3, y + 9, 10, 7);
+    this.facing = -1;
+    this.timer = 40 + Math.random() * 60;
+    this.deathColors = ['#2fae7a', '#e8c85a'];
+  }
+  update(ctx) {
+    this.animTime++;
+    this.vy = Math.min(this.vy + GRAVITY, MAX_FALL);
+    if (this.onGround) {
+      this.vx = 0;
+      if (--this.timer <= 0) {
+        this.timer = 70 + Math.random() * 40;
+        this.facing = Math.sign(ctx.player.cx - this.cx) || this.facing;
+        if (groundAhead(this, ctx.level, this.facing)) {
+          this.vy = -4.2;
+          this.vx = 1.3 * this.facing;
+        }
+      }
+    }
+    moveAndCollide(this, ctx.level);
+    if (this.hitWall) this.vx = 0;
+    if (this.y > ctx.level.pxHeight + 20) this.dead = true;
+  }
+  draw(g, ox, oy) {
+    const f = this.onGround ? S.dfrog[0] : S.dfrog[1];
+    this.drawSprite(g, this.facing >= 0 ? f.r : f.l, ox, oy);
+  }
+}
+
+// A howler that swings on a vine in a pendulum arc and lobs fruit downward.
+export class Howler extends Enemy {
+  constructor(x, y) {
+    super(x + 2, y + 4, 12, 9);
+    this.pivotX = this.x;
+    this.pivotY = this.y - TILE;      // vine anchor above
+    this.radius = TILE * 2.2;
+    this.t = Math.random() * Math.PI * 2;
+    this.timer = 80 + Math.random() * 60;
+    this.deathColors = ['#8a5a2b', '#e0b088'];
+  }
+  update(ctx) {
+    this.animTime++;
+    this.t += 0.03;
+    const swing = Math.sin(this.t) * 0.9; // pendulum angle
+    this.x = this.pivotX + Math.sin(swing) * this.radius;
+    this.y = this.pivotY + Math.cos(swing) * this.radius;
+    this.facing = Math.cos(this.t) >= 0 ? 1 : -1;
+    const p = ctx.player;
+    if (--this.timer <= 0) {
+      this.timer = 150;
+      if (Math.abs(p.cx - this.cx) < 130 && p.cy > this.cy) {
+        ctx.play.addEntity(new HazardShot(this.cx, this.y + this.h,
+          Math.sign(p.cx - this.cx) * 0.6, 0.4,
+          { gravity: 0.16, sprite: 'dart', life: 260 }));
+        sfx.shoot();
+      }
+    }
+  }
+  draw(g, ox, oy) {
+    // draw the vine tether
+    g.strokeStyle = '#2f8a44';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(Math.round(this.pivotX + this.w / 2 - ox), Math.round(this.pivotY - oy));
+    g.lineTo(Math.round(this.cx - ox), Math.round(this.y - oy));
+    g.stroke();
+    const f = S.howler[((this.animTime / 8) | 0) % 2];
+    this.drawSprite(g, this.facing >= 0 ? f.r : f.l, ox, oy);
+  }
+}
+
+// A carved serpent idol embedded in the ruins: fires aimed venom darts.
+export class IdolTurret extends Enemy {
+  constructor(x, y) {
+    super(x + 2, y + 2, 12, 14);
+    this.stompable = false;
+    this.solidPlatform = true; // carved stone — the player can stand on top of it
+    this.timer = 70 + Math.random() * 70;
+    this.flash = 0;
+    this.deathColors = ['#8a9a6a', '#1fb8a6'];
+  }
+  update(ctx) {
+    this.animTime++;
+    if (this.flash > 0) this.flash--;
+    const p = ctx.player;
+    if (--this.timer <= 0) {
+      this.timer = 150;
+      const dx = p.cx - this.cx, dy = p.cy - this.cy;
+      if (Math.hypot(dx, dy) < 170) {
+        const d = Math.hypot(dx, dy) || 1;
+        this.facing = Math.sign(dx) || 1;
+        this.flash = 20;
+        ctx.play.addEntity(new HazardShot(this.cx - 2, this.cy - 2,
+          (dx / d) * 1.9, (dy / d) * 1.9,
+          { sprite: 'dart', life: 280 }));
+        sfx.shoot();
+      }
+    }
+  }
+  draw(g, ox, oy) {
+    this.drawSprite(g, S.idol, ox, oy);
+    if (this.flash > 0 && (this.flash / 3 | 0) % 2) {
+      g.fillStyle = '#b6e05a';
+      g.fillRect(Math.round(this.cx - 2 - ox), Math.round(this.cy - 3 - oy), 4, 4);
+    }
+  }
+}
+
+// --- World 7: Sunken Depths (all gravity-free swimmers) ---------------------
+
+// Sine-swims back and forth; puffs up spiky when the player gets close, and
+// can't be stomped while inflated.
+export class Pufferfish extends Enemy {
+  constructor(x, y) {
+    super(x + 3, y + 5, 10, 6);
+    this.baseY = this.y;
+    this.t = Math.random() * Math.PI * 2;
+    this.facing = -1;
+    this.inflated = 0;
+    this.deathColors = ['#e8a13c', '#f4d488'];
+  }
+  update(ctx) {
+    this.animTime++;
+    this.t += 0.04;
+    const p = ctx.player;
+    const near = Math.hypot(p.cx - this.cx, p.cy - this.cy) < 56;
+    if (near && this.inflated === 0) { this.inflated = 90; sfx.bump(); }
+    if (this.inflated > 0) {
+      this.inflated--;
+      this.stompable = false;
+      this.x += 0.15 * this.facing;
+    } else {
+      this.stompable = true;
+      this.x += 0.5 * this.facing;
+    }
+    this.y = this.baseY + Math.sin(this.t) * 10;
+    // turn around at walls
+    const tx = Math.floor((this.cx + this.facing * 10) / 16);
+    if (ctx.level.tileAt(tx, Math.floor(this.cy / 16)) !== 0) this.facing *= -1;
+  }
+  draw(g, ox, oy) {
+    this.drawFacing(g, this.inflated > 0 ? S.pufferBig : S.puffer, ox, oy);
+  }
+}
+
+// Drifts slowly upward, wraps back to the bottom; stings on touch, shoot-only.
+export class Jellyfish extends Enemy {
+  constructor(x, y) {
+    super(x + 3, y + 4, 10, 10);
+    this.stompable = false;
+    this.baseX = this.x;
+    this.startY = this.y;
+    this.t = Math.random() * Math.PI * 2;
+    this.deathColors = ['#d48ae8', '#f4e0ff'];
+  }
+  update(ctx) {
+    this.animTime++;
+    this.t += 0.03;
+    this.y -= 0.35;
+    this.x = this.baseX + Math.sin(this.t) * 8;
+    if (this.y < -16) this.y = Math.min(this.startY + 40, ctx.level.pxHeight - 24);
+  }
+  draw(g, ox, oy) { this.drawSprite(g, S.jelly[this.frame(10)], ox, oy); }
+}
+
+// Patrols a lane, then telegraphs and lunges at the player. Stompable.
+export class Snapperfish extends Enemy {
+  constructor(x, y) {
+    super(x + 2, y + 5, 12, 7);
+    this.baseX = this.x;
+    this.state = 'patrol';
+    this.timer = 0;
+    this.cooldown = 0;
+    this.facing = 1;
+    this.deathColors = ['#4a9ad4', '#e8ecf4'];
+  }
+  update(ctx) {
+    this.animTime++;
+    const p = ctx.player;
+    if (this.cooldown > 0) this.cooldown--;
+    if (this.state === 'patrol') {
+      this.x += 0.6 * this.facing;
+      if (this.x > this.baseX + 44 || this.x < this.baseX - 44) this.facing *= -1;
+      if (this.cooldown === 0 && Math.abs(p.cx - this.cx) < 110 && Math.abs(p.cy - this.cy) < 60) {
+        this.state = 'aim';
+        this.timer = 24;
+        const d = Math.hypot(p.cx - this.cx, p.cy - this.cy) || 1;
+        this.lungeVx = ((p.cx - this.cx) / d) * 2.6;
+        this.lungeVy = ((p.cy - this.cy) / d) * 2.6;
+        this.facing = Math.sign(p.cx - this.cx) || 1;
+      }
+    } else if (this.state === 'aim') {
+      if (--this.timer <= 0) { this.state = 'lunge'; this.timer = 34; sfx.zap(); }
+    } else {
+      this.x += this.lungeVx;
+      this.y += this.lungeVy;
+      // stop at walls
+      if (ctx.level.tileAt(Math.floor(this.cx / 16), Math.floor(this.cy / 16)) !== 0) this.timer = 0;
+      if (--this.timer <= 0) { this.state = 'patrol'; this.cooldown = 100; this.baseX = this.x; }
+    }
+  }
+  draw(g, ox, oy) {
+    if (this.state === 'aim' && (this.timer / 3 | 0) % 2) {
+      g.fillStyle = 'rgba(255,80,80,0.45)';
+      g.fillRect(Math.round(this.x - 2 - ox), Math.round(this.y - 2 - oy), this.w + 4, this.h + 4);
+    }
+    this.drawFacing(g, S.snapper, ox, oy);
+  }
+}
+
+// Static spiked mine anchored to the reef: shoot-only.
+export class Urchin extends Enemy {
+  constructor(x, y) {
+    super(x + 3, y + 5, 10, 10);
+    this.stompable = false;
+    this.t = Math.random() * Math.PI * 2;
+    this.deathColors = ['#3a2c50', '#d44a6a'];
+  }
+  update() {
+    this.animTime++;
+    this.t += 0.05;
+  }
+  draw(g, ox, oy) {
+    const pulse = Math.sin(this.t) > 0.6 ? 1 : 0;
+    this.drawSprite(g, S.urchin, ox, oy - pulse);
+  }
+}
+
 export const ENEMY_FACTORY = {
   b: Shellsnail, h: Bumblebore, n: Snapdragon,
   a: Bat, s: Stalactite, k: Crawler,
   p: Puff, t: CloudTurret,
   d: Drone, f: FirewallTurret, g: GlitchMine,
   i: FireImp, l: LavaBubble,
+  e: DartFrog, w: Howler, j: IdolTurret,
+  q: Pufferfish, y: Jellyfish, z: Snapperfish, u: Urchin,
 };

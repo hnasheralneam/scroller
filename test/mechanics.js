@@ -42,7 +42,7 @@ run('grow power + shrink on hurt', () => {
 
 run('fire power + shooting', () => {
   game.power = 'fire';
-  const play = new PlayState(game, 3);
+  const play = new PlayState(game, 5);
   frames(play, 10);
   input.held = { shoot: true }; input.pressed = { shoot: true };
   play.update(); play.draw(g);
@@ -86,7 +86,7 @@ run('block bump spawns pickup', () => {
 });
 
 run('boss takes stomp damage', () => {
-  const play = new PlayState(game, 2); // Toad King arena
+  const play = new PlayState(game, 4); // Toad King arena
   frames(play, 5);
   const boss = play.boss;
   const hp = boss.hp;
@@ -96,7 +96,7 @@ run('boss takes stomp damage', () => {
 });
 
 run('stomping a rising boss never hurts the player', () => {
-  const play = new PlayState(game, 2);
+  const play = new PlayState(game, 4);
   frames(play, 5);
   const boss = play.boss, p = play.player;
   const hp = boss.hp;
@@ -118,7 +118,7 @@ run('stomp bounce does not get re-hit by the boss on a later frame', () => {
   // bounce, so the very next frame's non-stomp overlap fell through to
   // hurtPlayer(). Simulate several frames post-stomp with the boss actively
   // closing the gap and assert the player is never damaged.
-  const play = new PlayState(game, 2); // Toad King arena
+  const play = new PlayState(game, 4); // Toad King arena
   frames(play, 5);
   const boss = play.boss, p = play.player;
   const hp = boss.hp;
@@ -183,7 +183,7 @@ run('snapdragon lunges when approached, stays anchored', () => {
 });
 
 run('kernel never teleports on top of the player', () => {
-  const play = new PlayState(game, 11); // ROOT ACCESS (Kernel arena)
+  const play = new PlayState(game, 19); // ROOT ACCESS (Kernel arena)
   frames(play, 5);
   const boss = play.boss;
   const p = play.player;
