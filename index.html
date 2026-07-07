@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Pixel Scroller</title>
 <style>
   html, body {
@@ -12,6 +12,12 @@
     height: 100%;
     background: #0a0a12;
     overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
   }
   body {
     display: flex;
@@ -19,6 +25,7 @@
     justify-content: center;
     width: 100%;
     height: 100%;
+    height: 100dvh;
   }
   canvas {
     image-rendering: pixelated;

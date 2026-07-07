@@ -7,6 +7,7 @@ import { LEVELS } from './levels/index.js';
 import { PauseMenu } from './pausemenu.js';
 import { setMusicVolume, setSfxVolume, setMusicDuck } from './audio.js';
 import { music } from './music.js';
+import { initTouch } from './touch.js';
 
 class Game {
   constructor(canvas) {
@@ -29,6 +30,10 @@ class Game {
     this.state = new TitleState(this);
     this.fitCanvas();
     window.addEventListener('resize', () => this.fitCanvas());
+    window.addEventListener('orientationchange', () => this.fitCanvas());
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this.fitCanvas());
+    }
   }
 
   fitCanvas() {
@@ -36,11 +41,16 @@ class Game {
     // Calculate the integer scale factor, accounting for device pixel ratio.
     // This ensures the buffer (320x240) scales to an integer multiple of itself
     // when blitted to the canvas, preventing interpolation blur.
-    const k = Math.max(1, Math.floor(Math.min(
-      window.innerWidth * dpr / VIEW_W, window.innerHeight * dpr / VIEW_H)));
+    const fit = Math.min(
+      window.innerWidth * dpr / VIEW_W, window.innerHeight * dpr / VIEW_H);
+    let k = Math.max(1, Math.floor(fit));
+    // On low-dpr small screens integer scaling can waste a big chunk of the
+    // display; slight nearest-neighbor unevenness beats an unplayably small
+    // view, so fall back to fractional scale when the fit is under 70%.
+    if (k < fit * 0.7) k = fit;
     // Set canvas internal dimensions to integer multiple of buffer size
-    this.canvas.width = VIEW_W * k;
-    this.canvas.height = VIEW_H * k;
+    this.canvas.width = Math.round(VIEW_W * k);
+    this.canvas.height = Math.round(VIEW_H * k);
     // Set display size to fill window at the calculated scale
     // CSS pixels = device pixels / dpr
     this.canvas.style.width = `${VIEW_W * k / dpr}px`;
@@ -122,9 +132,11 @@ class Game {
 }
 
 const game = new Game(document.getElementById('game'));
+initTouch(game);
 
 // Dev shortcut: open index.html#level=7 to jump straight into a level
-const hashLevel = location.hash.match(/^#level=(\d+)$/);
+// (combines with #touch, e.g. #level=7&touch)
+const hashLevel = location.hash.match(/level=(\d+)/);
 if (hashLevel) {
   const idx = Math.min(LEVELS.length - 1, parseInt(hashLevel[1], 10));
   game.save.unlocked = Math.max(game.save.unlocked, idx);

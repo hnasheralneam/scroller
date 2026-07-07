@@ -6,6 +6,7 @@ import { S, drawText, drawTextCentered } from './sprites.js';
 import { sfx } from './audio.js';
 import { LEVELS, WORLD_STARTS } from './levels/index.js';
 import { music } from './music.js';
+import { isTouchUI } from './touch.js';
 
 const LAST_LEVEL = LEVELS.length - 1;
 const BAND_H = 56;       // vertical space per world
@@ -284,6 +285,6 @@ export class WorldMapState {
     drawTextCentered(g, WORLDS[world].name, VIEW_W / 2, 3, accent, 2);
     const tag = def.meta.boss ? `${world + 1}-BOSS` : `${world + 1}-${li + 1}`;
     drawText(g, tag, 6, 6, '#fff');
-    drawTextCentered(g, 'ENTER TO PLAY', VIEW_W / 2, VIEW_H - 10, '#9aa4b5');
+    drawTextCentered(g, isTouchUI() ? 'A TO PLAY' : 'ENTER TO PLAY', VIEW_W / 2, VIEW_H - 10, '#9aa4b5');
   }
 }

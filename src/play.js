@@ -7,6 +7,7 @@ import { Player } from './player.js';
 import { Camera } from './camera.js';
 import { aabb } from './physics.js';
 import { S, drawTextCentered } from './sprites.js';
+import { isTouchUI } from './touch.js';
 import {
   Coin, PowerPickup, Flag, Checkpoint, FloatingCheckpoint, MovingPlatform, CrumblePlatform, Firebar,
   TextPop, Particle, burst,
@@ -434,7 +435,7 @@ export class PlayState {
         if (this.bossIntro < 120) {
           drawTextCentered(g, 'VS', nx, 88, '#fff');
           if ((this.bossIntro / 20 | 0) % 2) {
-            drawTextCentered(g, 'ENTER TO FIGHT', VIEW_W / 2, 136, '#9aa4b5');
+            drawTextCentered(g, isTouchUI() ? 'TAP TO FIGHT' : 'ENTER TO FIGHT', VIEW_W / 2, 136, '#9aa4b5');
           }
         }
       }

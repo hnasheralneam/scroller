@@ -1,6 +1,7 @@
 import { VIEW_W, VIEW_H, WORLDS } from './constants.js';
 import { input } from './input.js';
 import { S, drawText, drawTextCentered } from './sprites.js';
+import { isTouchUI } from './touch.js';
 import { sfx } from './audio.js';
 import { LEVELS } from './levels/index.js';
 import { music } from './music.js';
@@ -50,9 +51,16 @@ export class TitleState {
     g.fillStyle = '#4a8f3c';
     g.fillRect(0, 140, VIEW_W, 4);
 
-    if ((this.time / 30 | 0) % 2) drawTextCentered(g, 'PRESS ENTER', VIEW_W / 2, 160, '#fff', 2);
-    drawTextCentered(g, 'ARROWS/WASD MOVE   Z/SPACE JUMP', VIEW_W / 2, 192, '#9aa4b5');
-    drawTextCentered(g, 'JUMP AGAIN IN AIR   X SHOOT', VIEW_W / 2, 204, '#9aa4b5');
+    if ((this.time / 30 | 0) % 2) {
+      drawTextCentered(g, isTouchUI() ? 'TAP TO START' : 'PRESS ENTER', VIEW_W / 2, 160, '#fff', 2);
+    }
+    if (isTouchUI()) {
+      drawTextCentered(g, 'ARROWS MOVE   A JUMP   B SHOOT', VIEW_W / 2, 192, '#9aa4b5');
+      drawTextCentered(g, 'JUMP AGAIN IN AIR', VIEW_W / 2, 204, '#9aa4b5');
+    } else {
+      drawTextCentered(g, 'ARROWS/WASD MOVE   Z/SPACE JUMP', VIEW_W / 2, 192, '#9aa4b5');
+      drawTextCentered(g, 'JUMP AGAIN IN AIR   X SHOOT', VIEW_W / 2, 204, '#9aa4b5');
+    }
     drawTextCentered(g, '7 WORLDS. 7 BOSSES. GOOD LUCK.', VIEW_W / 2, 224, '#6b7382');
   }
 }
@@ -87,7 +95,7 @@ export class LevelClearState {
     g.drawImage(S.coin[0], VIEW_W / 2 - 26, 116);
     drawText(g, `x${this.game.coins}`, VIEW_W / 2 - 14, 118, '#ffd23e');
     drawTextCentered(g, `LIVES x${this.game.lives}`, VIEW_W / 2, 136, '#fff');
-    if ((this.time / 30 | 0) % 2) drawTextCentered(g, 'PRESS ENTER', VIEW_W / 2, 170, '#fff');
+    if ((this.time / 30 | 0) % 2) drawTextCentered(g, isTouchUI() ? 'TAP TO CONTINUE' : 'PRESS ENTER', VIEW_W / 2, 170, '#fff');
   }
 }
 
@@ -110,7 +118,7 @@ export class GameOverState {
     g.fillRect(0, 0, VIEW_W, VIEW_H);
     drawTextCentered(g, 'GAME OVER', VIEW_W / 2, 100, '#e0342c', 3);
     drawTextCentered(g, 'YOUR PROGRESS IS SAVED', VIEW_W / 2, 140, '#9aa4b5');
-    if (this.time > 40 && (this.time / 30 | 0) % 2) drawTextCentered(g, 'PRESS ENTER', VIEW_W / 2, 170, '#fff');
+    if (this.time > 40 && (this.time / 30 | 0) % 2) drawTextCentered(g, isTouchUI() ? 'TAP TO CONTINUE' : 'PRESS ENTER', VIEW_W / 2, 170, '#fff');
   }
 }
 
@@ -159,6 +167,6 @@ export class VictoryState {
     drawTextCentered(g, `TOTAL COINS COLLECTED: ${this.game.totalCoins}`, VIEW_W / 2, 140, '#ffd23e');
     const spr = S.playerBig.idle.r;
     g.drawImage(spr, VIEW_W / 2 - spr.width / 2, 160);
-    if (this.time > 120 && (this.time / 30 | 0) % 2) drawTextCentered(g, 'PRESS ENTER', VIEW_W / 2, 214, '#fff');
+    if (this.time > 120 && (this.time / 30 | 0) % 2) drawTextCentered(g, isTouchUI() ? 'TAP TO CONTINUE' : 'PRESS ENTER', VIEW_W / 2, 214, '#fff');
   }
 }
