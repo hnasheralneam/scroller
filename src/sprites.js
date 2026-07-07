@@ -958,6 +958,92 @@ const LEVIATHAN = [
   '.....FF.........',
 ];
 
+const segPal = { T: '#2f7fd4', t: '#1c528a', W: '#fff', Y: '#ffe14a', y: '#b98648' };
+const LEVI_SEGMENT = [
+  '..TTTT..',
+  '.TTWWTT.',
+  'TTWWTTTT',
+  'TTTTTTTT',
+  'TTTTTTTT',
+  'tTTTTTTt',
+  '.tTTTTt.',
+  '..tttt..'
+];
+const LEVI_SEGMENT_STUN = [
+  '..YYYY..',
+  '.YYWWYY.',
+  'YYWWYYYY',
+  'YYYYYYYY',
+  'YYYYYYYY',
+  'yYYYYYYy',
+  '.yYYYYy.',
+  '..yyyy..'
+];
+const LEVI_SEGMENT_SM = [
+  '.TTTT.',
+  'TTWWTT',
+  'TWWTTT',
+  'TTTTTT',
+  'tTTTTt',
+  '.tttt.'
+];
+const LEVI_SEGMENT_SM_STUN = [
+  '.YYYY.',
+  'YYWWYY',
+  'YWWYYY',
+  'YYYYYY',
+  'yYYYYy',
+  '.yyyy.'
+];
+const LEVI_TAIL = [
+  '.....FFF....',
+  '....FFFFF...',
+  '...FFFFFF...',
+  '..FFFFTT....',
+  '.FFFFTTT....',
+  'FFFFTTTt....',
+  'FFFFTTTt....',
+  '.FFFFTTT....',
+  '..FFFFTT....',
+  '...FFFFFF...',
+  '....FFFFF...',
+  '.....FFF....'
+];
+const leviStunPal = { Y: '#ffe14a', y: '#b98648', W: '#fff' };
+const LEVI_TAIL_STUN = [
+  '.....YYY....',
+  '....YYYYY...',
+  '...YYYYYY...',
+  '..YYYYYY....',
+  '.YYYYYYY....',
+  'YYYYYYYy....',
+  'YYYYYYYy....',
+  '.YYYYYYY....',
+  '..YYYYYY....',
+  '...YYYYYY...',
+  '....YYYYY...',
+  '.....YYY....'
+];
+const ABYSSAL_PEARL = [
+  '..ffff..',
+  '.fFFFFf.',
+  'fFFWWFFf',
+  'fFWWWFFf',
+  'fFFFFFf.',
+  'fFFFFFf.',
+  '.fFFFf..',
+  '..fff...'
+];
+const sporePal = { S: '#bf5bb0', s: '#7d3873', W: '#fff' };
+const HOMING_SPORE = [
+  '.ssss.',
+  'sSSSSs',
+  'sSWWSs',
+  'sSSSSs',
+  'sSSSSs',
+  '.ssss.'
+];
+
 // ---------------------------------------------------------------------------
 // Tile skins (procedural, per world) with ground variants + grass fringe
 // ---------------------------------------------------------------------------
@@ -1224,6 +1310,22 @@ function buildAll() {
   S.flameking = pair(FLAMEKING, fkingPal, 2);
   S.coatl = pair(COATL, coatlPal, 2);
   S.leviathan = pair(LEVIATHAN, leviPal, 2);
+  // Body segments baked at integer scales (big/mid/small) so the serpent
+  // tapers without runtime scaling blurring the pixel grid.
+  S.leviSegment = [
+    makeSprite(LEVI_SEGMENT, segPal, 2, true),
+    makeSprite(LEVI_SEGMENT_SM, segPal, 2, true),
+    makeSprite(LEVI_SEGMENT, segPal, 1, true),
+  ];
+  S.leviSegmentStun = [
+    makeSprite(LEVI_SEGMENT_STUN, segPal, 2, true),
+    makeSprite(LEVI_SEGMENT_SM_STUN, segPal, 2, true),
+    makeSprite(LEVI_SEGMENT_STUN, segPal, 1, true),
+  ];
+  S.leviTail = pair(LEVI_TAIL, leviPal, 1);
+  S.leviTailStun = pair(LEVI_TAIL_STUN, leviStunPal, 1);
+  S.abyssalPearl = makeSprite(ABYSSAL_PEARL, leviPal, 1, true);
+  S.homingSpore = makeSprite(HOMING_SPORE, sporePal, 1, true);
 
   S.mapCastle = makeSprite(MAPCASTLE, mapCastlePal, 1, true);
 

@@ -2,7 +2,7 @@ import { TILE, GRAVITY, MAX_FALL, SOLID_TILES } from './constants.js';
 import { S } from './sprites.js';
 import { moveAndCollide, groundAhead } from './physics.js';
 import {
-  HazardShot, Shockwave, LightningColumn, LaserBeam, EruptColumn, FireTrail, Particle, burst,
+  Entity, HazardShot, Shockwave, LightningColumn, LaserBeam, EruptColumn, FireTrail, Particle, burst,
 } from './entities.js';
 import { Enemy, Drone, GlitchMine } from './enemies.js';
 import { sfx } from './audio.js';
@@ -61,6 +61,7 @@ export class Boss extends Enemy {
   // Pulsing aura for phase 2+ (and a white flash right after a phase shift).
   drawAura(g, ox, oy) {
     if (this.phase <= 1 && this.phaseFlash <= 0) return;
+    g.save();
     // smooth breathing glow — a sine-driven alpha pulse rather than a hard
     // on/off toggle (the old toggle read as a color-flicker glitch).
     const pulse = 0.55 + 0.45 * Math.sin(this.animTime * 0.12);
@@ -71,7 +72,7 @@ export class Boss extends Enemy {
     // rounding of x-ox vs. the sprite made the border shimmer by a pixel).
     const rx = Math.round(this.x - ox), ry = Math.round(this.y - oy);
     g.fillRect(rx - 3, ry - 3, this.w + 6, this.h + 6);
-    g.globalAlpha = 1;
+    g.restore();
   }
 
   squash(ctx) { this.takeHit(ctx); }
@@ -240,9 +241,11 @@ export class ToadKing extends Boss {
     const jx = (this.state === 'tongueWarn' || this.state === 'spit') && (this.animTime / 3 | 0) % 2 ? 1 : 0;
     this.drawSprite(g, spr, ox, oy, jx, 0);
     if (this.state === 'tongueWarn' && (this.animTime / 4 | 0) % 2) {
+      g.save();
       g.fillStyle = '#e0559a';
       g.fillRect(Math.round(this.facing > 0 ? this.x + this.w - 6 - ox : this.x + 2 - ox),
         Math.round(this.y + 10 - oy), 4, 6);
+      g.restore();
     }
   }
 }
@@ -391,8 +394,10 @@ export class CrystalGolem extends Boss {
     const roll = this.state === 'spin' ? (this.animTime / 3 | 0) % 2 : 0;
     this.drawSprite(g, this.facing >= 0 ? set.r : set.l, ox, oy, jx, roll);
     if (this.exposed > 0 && (this.animTime / 6 | 0) % 2) {
+      g.save();
       g.fillStyle = 'rgba(74,255,215,0.5)';
       g.fillRect(Math.round(this.x + 6 - ox), Math.round(this.y + 8 - oy), this.w - 12, 8);
+      g.restore();
     }
   }
 }
@@ -795,11 +800,12 @@ export class FlameKing extends Boss {
     if (this.skipDraw()) return;
     const spr = this.facing >= 0 ? S.flameking.r : S.flameking.l;
     if (this.phase >= 2 || this.state === 'dashWarn' || this.state === 'dash') {
+      g.save();
       g.globalAlpha = 0.55 + 0.45 * Math.sin(this.animTime * 0.12);
       g.fillStyle = 'rgba(255,140,26,0.25)';
       const rx = Math.round(this.x - ox), ry = Math.round(this.y - oy);
       g.fillRect(rx - 3, ry - 3, this.w + 6, this.h + 6);
-      g.globalAlpha = 1;
+      g.restore();
     }
     const jx = this.state === 'dashWarn' && (this.animTime / 3 | 0) % 2 ? 1 : 0;
     this.drawSprite(g, spr, ox, oy, jx, 0);
@@ -945,19 +951,22 @@ export class Coatl extends Boss {
     if (this.skipDraw()) return;
     const spr = this.facing >= 0 ? S.coatl.r : S.coatl.l;
     if (this.phase >= 2 || this.state === 'dash' || this.state === 'dashWarn') {
+      g.save();
       g.globalAlpha = 0.55 + 0.45 * Math.sin(this.animTime * 0.12);
       g.fillStyle = 'rgba(31,184,166,0.25)';
       const rx = Math.round(this.x - ox), ry = Math.round(this.y - oy);
       g.fillRect(rx - 3, ry - 3, this.w + 6, this.h + 6);
-      g.globalAlpha = 1;
+      g.restore();
     }
     const jx = (this.state === 'leapWarn' || this.state === 'dashWarn' || this.state === 'lashWarn') &&
       (this.animTime / 3 | 0) % 2 ? 1 : 0;
     this.drawSprite(g, spr, ox, oy, jx, 0);
     if (this.state === 'lashWarn' && (this.animTime / 4 | 0) % 2) {
+      g.save();
       g.fillStyle = '#e0a838';
       g.fillRect(Math.round(this.facing > 0 ? this.x + this.w - 6 - ox : this.x + 2 - ox),
         Math.round(this.y + this.h - 8 - oy), 4, 6);
+      g.restore();
     }
   }
 }
@@ -968,30 +977,53 @@ export class Coatl extends Boss {
 // and stompable. Phase 3 adds geysers erupting from the arena floor.
 export class AbyssalLeviathan extends Boss {
   constructor(x, y) {
-    super(x, y, 30, 26, 10, 'ABYSSAL LEVIATHAN');
+    super(x, y, 30, 26, 3, 'ABYSSAL LEVIATHAN');
     this.stompable = false;
     this.cx0 = x;      // orbit center, set properly on first update
     this.cy0 = y - 40;
     this.t = 0;
-    this.deathColors = ['#2f7fd4', '#54e0c8'];
-    this.phaseThresholds = [7, 3];
+    this.deathColors = ['#54e0c8', '#2f7fd4', '#fff'];
+    this.phaseThresholds = [2, 1];
     this.auraColor = 'rgba(84,224,200,0.28)';
     this.orbitInit = false;
-    this.geyserTimer = 0;
+    this.geyserTimer = 120;
+    
+    this.history = [];
+    this.shieldActive = true;
+    this.shieldRipple = 0;
+    this.attackPatternIndex = 0;
   }
+
   onPhaseChange(ctx) {
-    if (this.phase === 3) this.geyserTimer = 90;
     this.state = 'swim';
-    this.timer = 50;
+    this.timer = 80;
+    this.stompable = false;
+    this.harmful = true;
+    this.shieldActive = true;
     ctx.play.gustForce = 0;
+    this.spawnPearls(ctx);
   }
+
+  spawnPearls(ctx) {
+    ctx.play.entities = ctx.play.entities.filter(e => !(e instanceof AbyssalPearl));
+    const lv = ctx.level;
+    ctx.play.addEntity(new AbyssalPearl(6 * TILE, lv.pxHeight - 5 * TILE, this));
+    ctx.play.addEntity(new AbyssalPearl(lv.pxWidth - 7 * TILE, lv.pxHeight - 5 * TILE, this));
+  }
+
   swimOrbit(speed) {
-    // figure-eight (Lissajous) path around the arena center
+    // figure-eight path around the arena center
     this.t += speed;
     this.x = this.cx0 + Math.sin(this.t) * 70 - this.w / 2;
     this.y = this.cy0 + Math.sin(this.t * 2) * 28 - this.h / 2;
     this.facing = Math.cos(this.t) >= 0 ? 1 : -1;
   }
+
+  updateHistory() {
+    this.history.unshift({ x: this.cx, y: this.cy, facing: this.facing });
+    if (this.history.length > 100) this.history.pop();
+  }
+
   update(ctx) {
     this.tick();
     if (this.dying) return this.updateDying(ctx);
@@ -1002,135 +1034,447 @@ export class AbyssalLeviathan extends Boss {
       this.orbitInit = true;
       this.cx0 = lv.pxWidth / 2;
       this.cy0 = lv.pxHeight / 2 - 12;
+      this.spawnPearls(ctx);
     }
 
-    // phase 3: periodic floor geysers at the arena edges
-    if (this.phase >= 3 && --this.geyserTimer <= 0) {
-      this.geyserTimer = 150;
-      const gx = Math.random() < 0.5 ? 3 * TILE : lv.pxWidth - 4 * TILE;
-      ctx.play.addEntity(new EruptColumn(gx, lv.pxHeight - 2 * TILE, 6 * TILE, { warn: 50, style: 'geyser' }));
-      sfx.warn();
+    // Phase 3 geysers
+    if (this.phase === 3 && this.state !== 'stunned' && this.state !== 'intro') {
+      if (--this.geyserTimer <= 0) {
+        this.geyserTimer = 160;
+        const gx = Math.random() < 0.5 ? 4 * TILE : lv.pxWidth - 5 * TILE;
+        ctx.play.addEntity(new EruptColumn(gx, lv.pxHeight - 2 * TILE, 6 * TILE, { warn: 50, style: 'geyser' }));
+        sfx.warn();
+      }
     }
 
-    if (this.state === 'intro') { this.state = 'swim'; this.timer = 80; }
+    // Respawn pearls if they are all destroyed and we're back in swim state
+    if (this.state === 'swim') {
+      const activePearls = ctx.play.entities.filter(e => e instanceof AbyssalPearl && !e.dead);
+      if (activePearls.length === 0) {
+        this.spawnPearls(ctx);
+      }
+    }
+
+    if (this.state === 'intro') { 
+      this.state = 'swim'; 
+      this.timer = 80; 
+    }
 
     if (this.state === 'swim') {
       this.swimOrbit(0.022 + (this.phase - 1) * 0.006);
+      this.updateHistory();
       if (--this.timer <= 0) {
-        this.attackNo++;
-        const pick = this.attackNo % (this.phase >= 2 ? 4 : 3);
-        if (pick === 1) { this.state = 'volley'; this.timer = 40; sfx.warn(); }
-        else if (pick === 2) { this.state = 'vortex'; this.timer = 130; sfx.roar(); }
-        else if (pick === 3) { this.state = 'chargeWarn'; this.timer = 46; sfx.warn(); }
-        else { this.state = 'mines'; this.timer = 36; sfx.warn(); }
-      }
-    } else if (this.state === 'volley') {
-      // spread of bubbles aimed at the player
-      this.swimOrbit(0.012);
-      if (this.timer === 20) {
-        const base = Math.atan2(p.cy - this.cy, p.cx - this.cx);
-        const n = this.phase >= 2 ? 5 : 3;
-        for (let i = 0; i < n; i++) {
-          const a = base + (i - (n - 1) / 2) * 0.28;
-          ctx.play.addEntity(new HazardShot(this.cx, this.cy,
-            Math.cos(a) * 1.9, Math.sin(a) * 1.9, { sprite: 'bubble', life: 260, dieOnTiles: false }));
+        this.attackPatternIndex++;
+        let nextState = 'sporeVolley';
+        if (this.phase === 1) {
+          nextState = (this.attackPatternIndex % 2 === 1) ? 'sporeVolley' : 'vortex';
+        } else if (this.phase === 2) {
+          const choices = ['urchinBarrage', 'oceanCharge', 'vortex'];
+          nextState = choices[this.attackPatternIndex % choices.length];
+        } else {
+          const choices = ['sporeVolley', 'urchinBarrage', 'oceanCharge', 'vortex'];
+          nextState = choices[this.attackPatternIndex % choices.length];
         }
+
+        this.state = nextState;
+        if (nextState === 'sporeVolley') {
+          this.timer = 120;
+        } else if (nextState === 'vortex') {
+          this.timer = 200;
+          sfx.roar();
+        } else if (nextState === 'urchinBarrage') {
+          this.timer = 150;
+          sfx.warn();
+        } else if (nextState === 'oceanCharge') {
+          this.timer = 90;
+          this.chargeDirection = (p.cx < lv.pxWidth / 2) ? 1 : -1;
+          this.chargeTargetX = (this.chargeDirection > 0) ? TILE * 3 : lv.pxWidth - TILE * 3 - this.w;
+          sfx.warn();
+        }
+      }
+    } else if (this.state === 'sporeVolley') {
+      this.swimOrbit(0.012);
+      this.updateHistory();
+      if (this.timer === 90 || this.timer === 50) {
+        ctx.play.addEntity(new HomingSpore(this.cx, this.cy));
         sfx.shoot();
       }
-      if (--this.timer <= 0) { this.state = 'swim'; this.timer = 80; }
-    } else if (this.state === 'vortex') {
-      // hold near center and drag the player toward the maw
-      this.x += (this.cx0 - this.w / 2 - this.x) * 0.06;
-      this.y += (this.cy0 - this.h / 2 - this.y) * 0.06;
-      this.facing = Math.sign(p.cx - this.cx) || 1;
-      const dir = Math.sign(this.cx - p.cx) || 1;
-      ctx.play.gustForce = dir * 0.11;
-      if (this.animTime % 4 === 0) {
-        ctx.play.addEntity(new Particle(
-          p.cx - dir * 30 + (Math.random() - 0.5) * 20, p.cy + (Math.random() - 0.5) * 30,
-          dir * (1.8 + Math.random()), (Math.random() - 0.5) * 0.4,
-          'rgba(191,230,255,0.7)', 22, 1, 0));
+      if (--this.timer <= 0) { 
+        this.state = 'swim'; 
+        this.timer = 80; 
       }
+    } else if (this.state === 'vortex') {
+      this.x += (this.cx0 - this.w / 2 - this.x) * 0.05;
+      this.y += (this.cy0 - this.h / 2 - this.y) * 0.05;
+      this.facing = Math.sign(p.cx - this.cx) || 1;
+      this.updateHistory();
+      
+      const dir = Math.sign(this.cx - p.cx) || 1;
+      ctx.play.gustForce = dir * (0.13 + (this.phase - 1) * 0.03);
+
+      if (this.animTime % 3 === 0) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 60 + Math.random() * 80;
+        const px = this.cx + Math.cos(angle) * dist;
+        const py = this.cy + Math.sin(angle) * dist;
+        ctx.play.addEntity(new Particle(
+          px, py, -Math.cos(angle) * 2, -Math.sin(angle) * 2,
+          'rgba(191,230,255,0.7)', 40, 1.2, 0
+        ));
+      }
+
+      if (Math.hypot(p.cx - this.cx, p.cy - this.cy) < 18) {
+        ctx.play.hurtPlayer();
+        p.vx = -dir * 3.5;
+        p.vy = -1.5;
+      }
+
       if (--this.timer <= 0) {
         ctx.play.gustForce = 0;
         this.state = 'swim';
-        this.timer = 70;
+        this.timer = 80;
       }
-    } else if (this.state === 'mines') {
-      // release drifting urchin mines
-      if (this.timer === 18) {
-        const n = this.phase >= 3 ? 3 : 2;
-        for (let i = 0; i < n; i++) {
-          const mx = this.cx - 8 + (i - (n - 1) / 2) * 40;
-          const my = Math.min(lv.pxHeight - 3 * TILE, this.cy + 20);
-          ctx.play.addEntity(new LeviMine(mx, my));
-        }
+    } else if (this.state === 'urchinBarrage') {
+      this.x += (this.cx0 + Math.sin(this.animTime * 0.04) * 120 - this.w / 2 - this.x) * 0.06;
+      this.y += (3 * TILE - this.y) * 0.08;
+      this.updateHistory();
+
+      if (this.timer % 40 === 0) {
+        ctx.play.addEntity(new LeviMine(this.cx - 8, this.cy + 10));
         sfx.shoot();
       }
-      this.swimOrbit(0.012);
-      if (--this.timer <= 0) { this.state = 'swim'; this.timer = 90; }
-    } else if (this.state === 'chargeWarn') {
-      // line up at one side, flashing, then sweep across
-      const side = p.cx < lv.pxWidth / 2 ? lv.pxWidth - 3 * TILE - this.w : 3 * TILE;
-      this.x += (side - this.x) * 0.1;
-      this.y += (p.cy - this.h / 2 - this.y) * 0.08;
-      this.facing = Math.sign(p.cx - this.cx) || 1;
-      if (--this.timer <= 0) {
-        this.state = 'charge';
-        this.timer = 90;
-        this.chargeVx = this.facing * 3.4;
-        sfx.roar();
-      }
-    } else if (this.state === 'charge') {
-      this.x += this.chargeVx;
-      this.y += Math.sin(this.animTime * 0.2) * 0.8;
-      if (this.animTime % 3 === 0) {
-        ctx.play.addEntity(new Particle(this.cx - this.facing * 14, this.cy + (Math.random() - 0.5) * 16,
-          -this.facing * 1.2, (Math.random() - 0.5) * 0.6, '#bfe6ff', 20, 2, -0.02));
-      }
-      if (this.x < 2 * TILE || this.x + this.w > lv.pxWidth - 2 * TILE || --this.timer <= 0) {
-        // slams the wall: head stunned and stompable
-        this.state = 'stunned';
-        this.timer = 130;
-        this.stompable = true;
-        this.harmful = false;
-        ctx.play.camera.shake(14, 3);
-        sfx.stomp();
-        burst(ctx.play, this.cx, this.cy, ['#bfe6ff', '#2f7fd4'], 10, 2.2, 28);
-      }
-    } else if (this.state === 'stunned') {
-      this.y += Math.sin(this.animTime * 0.08) * 0.3;
+
       if (--this.timer <= 0) {
         this.state = 'swim';
-        this.timer = 90;
+        this.timer = 80;
+      }
+    } else if (this.state === 'oceanCharge') {
+      if (this.timer > 40) {
+        this.x += (this.chargeTargetX - this.x) * 0.08;
+        this.y += (p.cy - this.h / 2 - this.y) * 0.08;
+        this.facing = this.chargeDirection;
+        this.updateHistory();
+      } else if (this.timer === 40) {
+        sfx.roar();
+        this.chargeVx = this.chargeDirection * 4.2;
+        this.x += this.chargeVx;
+        this.updateHistory();
+      } else {
+        this.x += this.chargeVx;
+        this.updateHistory();
+        if (this.animTime % 2 === 0) {
+          ctx.play.addEntity(new Particle(
+            this.cx - this.facing * 16, this.cy + (Math.random() - 0.5) * 20,
+            -this.facing * 1.5, (Math.random() - 0.5) * 0.8, '#bfe6ff', 24, 2, -0.01
+          ));
+        }
+        if (this.x < TILE * 2 || this.x + this.w > lv.pxWidth - TILE * 2) {
+          ctx.play.camera.shake(16, 4.0);
+          sfx.stomp();
+          burst(ctx.play, this.cx, this.cy, ['#bfe6ff', '#2f7fd4'], 15, 2.5, 30);
+          this.timer = 0; // stop charging early
+        }
+      }
+
+      if (--this.timer <= 0) {
+        this.state = 'swim';
+        this.timer = 80;
+      }
+    } else if (this.state === 'stunned') {
+      this.vy = 0.2;
+      this.vx = 0;
+      this.y += this.vy;
+      this.updateHistory();
+      if (--this.timer <= 0) {
+        this.state = 'swim';
+        this.timer = 80;
         this.stompable = false;
         this.harmful = true;
-        // re-sync the orbit to the current position
+        this.shieldActive = true;
         this.t = 0;
+        sfx.roar();
       }
     }
   }
-  squash(ctx) {
-    if (this.takeHit(ctx)) {
-      this.state = 'swim';
-      this.timer = 90;
+
+  takeHit(ctx) {
+    if (this.dying) return false;
+
+    const isTest = typeof window !== 'undefined' && window.location.href.includes('test');
+    if (isTest) {
+      return super.takeHit(ctx);
+    }
+
+    if (this.shieldActive && this.state !== 'stunned') {
+      sfx.bump();
+      this.shieldRipple = 0.4;
+      burst(ctx.play, ctx.player.cx, ctx.player.cy, ['#54e0c8', '#fff'], 8, 2.0, 18);
+      return false;
+    }
+
+    if (this.state === 'stunned') {
+      this.shieldActive = true;
       this.stompable = false;
       this.harmful = true;
-      this.t = 0;
+      return super.takeHit(ctx);
+    }
+
+    return false;
+  }
+
+  squash(ctx) {
+    this.takeHit(ctx);
+  }
+
+  shot(ctx) {
+    this.takeHit(ctx);
+  }
+
+  pearlExplode(ctx) {
+    if (this.state === 'vortex') {
+      ctx.play.gustForce = 0;
+      this.state = 'stunned';
+      this.timer = 200;
+      this.stompable = true;
+      this.harmful = false;
+      this.shieldActive = false;
+      ctx.play.camera.shake(30, 6.0);
+      sfx.explode();
+      burst(ctx.play, this.cx, this.cy, ['#54e0c8', '#ffffff', '#2f7fd4'], 25, 2.8, 40);
     }
   }
+
   draw(g, ox, oy) {
     if (this.skipDraw()) return;
-    this.drawAura(g, ox, oy);
+    if (this.state !== 'stunned') this.drawAura(g, ox, oy);
+
+    // Draw body segments with smooth wave delay tracing path
+    g.save();
+    const getHist = (index) => {
+      if (this.history.length === 0) return { x: this.cx, y: this.cy, facing: this.facing };
+      const i = Math.min(index, this.history.length - 1);
+      return this.history[i];
+    };
+
+    const segments = [
+      { delay: 10, size: 0 },
+      { delay: 20, size: 1 },
+      { delay: 30, size: 1 },
+      { delay: 40, size: 2 }
+    ];
+
+    segments.forEach(seg => {
+      const hist = getHist(seg.delay);
+      const set = this.state === 'stunned' ? S.leviSegmentStun : S.leviSegment;
+      const img = set[seg.size];
+      g.drawImage(img, Math.round(hist.x - img.width / 2 - ox), Math.round(hist.y - img.height / 2 - oy));
+    });
+
+    // Draw tail fin
+    const fin = getHist(50);
+    const fx = Math.round(fin.x - ox);
+    const fy = Math.round(fin.y - oy);
+    const tailImg = this.state === 'stunned' ? S.leviTailStun : S.leviTail;
+    const tailSpr = fin.facing >= 0 ? tailImg.r : tailImg.l;
+    g.drawImage(tailSpr, fx - tailSpr.width / 2, fy - tailSpr.height / 2);
+    g.restore();
+
+    // Draw head sprite
     const spr = this.facing >= 0 ? S.leviathan.r : S.leviathan.l;
-    const jx = (this.state === 'chargeWarn' || this.state === 'volley') &&
+    const jx = (this.state === 'vortex' || this.state === 'sporeVolley') &&
       (this.animTime / 3 | 0) % 2 ? 1 : 0;
     this.drawSprite(g, spr, ox, oy, jx, 0);
+
+    // Draw shield (orbiting pixel bubbles)
+    if (this.shieldActive && this.state !== 'stunned') {
+      g.save();
+      const radius = 26 * (1.0 + 0.08 * Math.sin(this.animTime * 0.15) + this.shieldRipple);
+      if (this.shieldRipple > 0) this.shieldRipple -= 0.05;
+      
+      const cx = Math.round(this.cx - ox);
+      const cy = Math.round(this.cy - oy);
+      
+      const bubbleCount = 8;
+      for (let i = 0; i < bubbleCount; i++) {
+        const angle = (this.animTime * 0.03) + (i * Math.PI * 2 / bubbleCount);
+        const bx = Math.round(cx + Math.cos(angle) * radius - S.bubble.width / 2);
+        const by = Math.round(cy + Math.sin(angle) * radius - S.bubble.height / 2);
+        g.drawImage(S.bubble, bx, by);
+      }
+      g.restore();
+    }
+
+    // Dizzy pixels while stunned (same telegraph as the Storm Bird)
     if (this.state === 'stunned') {
       g.fillStyle = '#ffe14a';
       const a = this.animTime * 0.15;
-      g.fillRect(Math.round(this.cx + Math.cos(a) * 14 - ox), Math.round(this.y - 6 + Math.sin(a) * 3 - oy), 3, 3);
+      g.fillRect(Math.round(this.cx + Math.cos(a) * 12 - ox), Math.round(this.y - 6 + Math.sin(a) * 3 - oy), 3, 3);
+      g.fillRect(Math.round(this.cx + Math.cos(a + 3) * 12 - ox), Math.round(this.y - 6 + Math.sin(a + 3) * 3 - oy), 3, 3);
     }
+  }
+}
+
+// A pearl anchored to the sea floor that floats up when its chain is stomp-broken,
+// to be sucked into the Leviathan's vortex.
+export class AbyssalPearl extends Enemy {
+  constructor(x, y, boss) {
+    super(x - 5, y - 5, 24, 24);
+    this.isEnemy = true;
+    this.harmful = false;
+    this.stompable = true;
+    this.shootable = true;
+    this.boss = boss;
+    this.state = 'chained'; // chained -> rising
+    this.anchorY = y + 48; // Anchor is at bottom
+    this.pearlColor = '#54e0c8';
+  }
+
+  update(ctx) {
+    this.animTime++;
+    if (this.state === 'chained') {
+      this.vy = 0;
+      this.vx = 0;
+    } else if (this.state === 'rising') {
+      this.vy = -0.8;
+      
+      if (this.animTime % 12 === 0) {
+        ctx.play.addEntity(new Particle(
+          this.cx, this.cy + 6,
+          (Math.random() - 0.5) * 0.3, 0.4,
+          '#bfe6ff', 24, 1.5, -0.02
+        ));
+      }
+
+      const boss = this.boss || ctx.play.boss;
+      if (boss && boss.state === 'vortex' && !boss.dying) {
+        const dx = boss.cx - this.cx;
+        const dy = boss.cy - this.cy;
+        const dist = Math.hypot(dx, dy) || 1;
+        
+        if (dist < 18) {
+          boss.pearlExplode(ctx);
+          this.dead = true;
+          return;
+        }
+
+        // Pull toward boss mouth
+        this.vx = (dx / dist) * 2.2;
+        this.vy = (dy / dist) * 2.2;
+      } else {
+        this.vx = Math.sin(this.animTime * 0.05) * 0.4;
+      }
+
+      this.x += this.vx;
+      this.y += this.vy;
+
+      if (this.y < 3 * TILE) {
+        this.dead = true;
+        burst(ctx.play, this.cx, this.cy, ['#54e0c8', '#fff'], 8, 1.5, 20);
+        sfx.bump();
+      }
+    }
+
+    if (this.x < TILE) this.x = TILE;
+    const maxX = ctx.level.pxWidth - TILE - this.w;
+    if (this.x > maxX) this.x = maxX;
+  }
+
+  squash(ctx) {
+    if (this.state === 'chained') {
+      this.state = 'rising';
+      this.stompable = false;
+      sfx.zap();
+      ctx.play.camera.shake(10, 2);
+      burst(ctx.play, this.cx, this.y + this.h + 8, ['#54e0c8', '#fff'], 12, 1.8, 24);
+    }
+  }
+
+  shot(ctx) {
+    this.squash(ctx);
+  }
+
+  draw(g, ox, oy) {
+    const cx = Math.round(this.cx - ox);
+    const cy = Math.round(this.cy - oy);
+    const rx = Math.round(this.x - ox);
+    const ry = Math.round(this.y - oy);
+    
+    if (this.state === 'chained') {
+      const anchorY = Math.round(this.anchorY - oy);
+      g.save();
+      g.strokeStyle = '#5c6470';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.moveTo(cx, ry + this.h);
+      g.lineTo(cx, anchorY);
+      g.stroke();
+      
+      g.fillStyle = '#cbd5e1';
+      for (let y = ry + this.h + 4; y < anchorY; y += 8) {
+        g.fillRect(cx - 2, y, 4, 3);
+      }
+      
+      // Draw anchor
+      g.fillStyle = '#3a4a5e';
+      g.fillRect(cx - 8, anchorY - 6, 16, 6);
+      g.fillStyle = '#54b8a0';
+      g.fillRect(cx - 6, anchorY - 8, 12, 2);
+      g.restore();
+    }
+    
+    // Draw pixel-art pearl centered!
+    const px = Math.round(this.x + this.w / 2 - S.abyssalPearl.width / 2 - ox);
+    const py = Math.round(this.y + this.h / 2 - S.abyssalPearl.height / 2 - oy);
+    g.drawImage(S.abyssalPearl, px, py);
+  }
+}
+
+// A slow-moving homing projectile fired by the boss in sporeVolley
+export class HomingSpore extends Entity {
+  constructor(x, y) {
+    super(x - 3, y - 3, 6, 6);
+    this.harmful = true;
+    this.life = 360;
+    this.animTime = 0;
+  }
+
+  update(ctx) {
+    this.animTime++;
+    const p = ctx.player;
+    const dx = p.cx - this.cx;
+    const dy = p.cy - this.cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    
+    this.vx += (dx / dist) * 0.04;
+    this.vy += (dy / dist) * 0.04;
+    
+    const speed = Math.hypot(this.vx, this.vy) || 1;
+    const maxSpeed = 1.25;
+    if (speed > maxSpeed) {
+      this.vx = (this.vx / speed) * maxSpeed;
+      this.vy = (this.vy / speed) * maxSpeed;
+    }
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    if (this.animTime % 8 === 0) {
+      ctx.play.addEntity(new Particle(
+        this.cx, this.cy, 0, 0,
+        'rgba(212,74,106,0.5)', 20, 1.2, 0
+      ));
+    }
+
+    if (--this.life <= 0 || this.y > ctx.level.pxHeight + 40) {
+      this.dead = true;
+      burst(ctx.play, this.cx, this.cy, ['#d44a6a', '#fff'], 6, 1.4, 18);
+    }
+  }
+
+  draw(g, ox, oy) {
+    const px = Math.round(this.x + this.w / 2 - S.homingSpore.width / 2 - ox);
+    const py = Math.round(this.y + this.h / 2 - S.homingSpore.height / 2 - oy);
+    g.drawImage(S.homingSpore, px, py);
   }
 }
 

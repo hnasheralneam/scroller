@@ -532,6 +532,7 @@ export class Level {
     // low-res buffer scaled up nearest-neighbor, so a fractional camera makes
     // background edges crawl/shimmer. The bg* helpers only read cam.x.
     cam = { x: Math.round(cam.x) };
+    g.imageSmoothingEnabled = false;
     if (w === 0) this.bgMeadows(g, cam);
     else if (w === 1) this.bgCaverns(g, cam);
     else if (w === 2) this.bgSky(g, cam);
@@ -861,9 +862,9 @@ export class Level {
 
     // distant stepped pyramids with overgrown ruins between them (baked)
     const pp = cam.x * 0.25;
-    // ground line for these props: just behind the far-canopy ridge (baseH 70)
-    // so their bases tuck under the leaf line instead of floating in the sky.
-    const gy = VIEW_H - 62;
+    // ground line for these props: aligned with the far canopy ridge
+    // so their bases sit naturally on the terrain layer.
+    const gy = VIEW_H - 48;
     for (let ix = Math.floor(pp / 220) - 1; ix <= Math.floor((pp + VIEW_W) / 220) + 1; ix++) {
       const px = ix * 220 - pp + 40;
       g.fillStyle = '#3a4a34';
@@ -871,9 +872,12 @@ export class Level {
         const w = 90 - s * 16;
         g.fillRect(px + s * 8, gy - (12 + s * 12), w, 12);
       }
+      g.fillRect(px, gy, 90, 60); // extend pyramid base down
       g.fillStyle = '#2a3826';
       g.fillRect(px + 34, gy - 68, 12, 8); // temple crown
       g.drawImage(BG.ruins[((ix % 2) + 2) % 2], px + 118, gy - 40);
+      g.fillStyle = '#3a4a34';
+      g.fillRect(px + 118, gy, 72, 60); // extend ruin base down
     }
 
     // far canopy silhouette (terraced leaf line)

@@ -51,12 +51,15 @@ export function onUnlock(cb) {
 }
 
 // Unlock audio on first user interaction (browser autoplay policy)
-window.addEventListener('keydown', () => {
+const unlockEvents = ['keydown', 'mousedown', 'touchstart', 'pointerdown', 'click'];
+function unlock() {
   try { ac(); } catch (e) { return; }
   unlocked = true;
   for (const cb of unlockCbs) cb();
   unlockCbs.length = 0;
-}, { once: true });
+  unlockEvents.forEach(e => window.removeEventListener(e, unlock));
+}
+unlockEvents.forEach(e => window.addEventListener(e, unlock));
 
 function beep(freq, dur, { type = 'square', vol = 0.12, slide = 0, delay = 0 } = {}) {
   try {

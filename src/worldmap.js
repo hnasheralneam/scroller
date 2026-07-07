@@ -136,21 +136,29 @@ export class WorldMapState {
     if (w === 0) { // meadow: hills + sun
       g.fillStyle = c;
       for (let i = 0; i < 5; i++) {
-        const hx = 20 + i * 70, hw = 44, hh = 10 + (i % 3) * 4;
-        g.beginPath();
-        g.ellipse(hx, top + BAND_H, hw / 2, hh, 0, Math.PI, 0);
-        g.fill();
+        const hx = 20 + i * 70, hh = 10 + (i % 3) * 4;
+        const cx = Math.round(hx);
+        const y = Math.round(top + BAND_H);
+        g.fillRect(cx - 22, y - Math.round(hh * 0.3), 44, Math.round(hh * 0.3));
+        g.fillRect(cx - 15, y - Math.round(hh * 0.7), 30, Math.round(hh * 0.7));
+        g.fillRect(cx - 8, y - hh, 16, hh);
       }
+      const sx = 284, sy = Math.round(top + 12);
       g.fillStyle = '#ffd23e';
-      g.beginPath(); g.arc(284, top + 12, 7, 0, Math.PI * 2); g.fill();
+      g.fillRect(sx - 3, sy - 6, 6, 12);
+      g.fillRect(sx - 5, sy - 5, 10, 10);
+      g.fillRect(sx - 6, sy - 3, 12, 6);
     } else if (w === 1) { // caverns: crystal spikes from floor and ceiling
       g.fillStyle = c;
       for (let i = 0; i < 9; i++) {
-        const cx = 12 + i * 36, h = 8 + (i * 5) % 10, up = i % 2 === 0;
-        const by = up ? top + BAND_H : top;
-        g.beginPath();
-        g.moveTo(cx - 4, by); g.lineTo(cx + 4, by); g.lineTo(cx, by + (up ? -h : h));
-        g.fill();
+        const cx = Math.round(12 + i * 36), h = 8 + (i * 5) % 10, up = i % 2 === 0;
+        const by = Math.round(up ? top + BAND_H : top);
+        for (let dy = 0; dy < h; dy++) {
+          const width = Math.max(1, Math.round(8 * (1 - dy / h)));
+          const x = cx - Math.floor(width / 2);
+          const y = up ? by - dy - 1 : by + dy;
+          g.fillRect(x, y, width, 1);
+        }
       }
     } else if (w === 2) { // sky: puffy cloud blobs
       g.fillStyle = '#eef6ff';
@@ -160,12 +168,13 @@ export class WorldMapState {
         g.fillRect(cx + 4, cy - 3, 13, 3);
       }
     } else if (w === 3) { // mainframe: terminal grid
-      g.strokeStyle = c;
-      g.lineWidth = 1;
-      g.beginPath();
-      for (let x = 8; x < VIEW_W; x += 32) { g.moveTo(x + 0.5, top + 2); g.lineTo(x + 0.5, top + BAND_H - 2); }
-      for (let y = 8; y < BAND_H; y += 16) { g.moveTo(0, top + y + 0.5); g.lineTo(VIEW_W, top + y + 0.5); }
-      g.stroke();
+      g.fillStyle = c;
+      for (let x = 8; x < VIEW_W; x += 32) {
+        g.fillRect(x, top + 2, 1, BAND_H - 4);
+      }
+      for (let y = 8; y < BAND_H; y += 16) {
+        g.fillRect(0, top + y, VIEW_W, 1);
+      }
     } else if (w === 4) { // molten: lava pool + embers
       g.fillStyle = c;
       g.fillRect(0, top + BAND_H - 7, VIEW_W, 7);
@@ -178,17 +187,23 @@ export class WorldMapState {
     } else if (w === 5) { // jungle: canopy scallops + vines
       g.fillStyle = c;
       for (let i = 0; i < 11; i++) {
-        g.beginPath(); g.arc(14 + i * 30, top, 14, 0, Math.PI); g.fill();
+        const cx = Math.round(14 + i * 30), cy = Math.round(top);
+        for (let dy = 0; dy < 14; dy++) {
+          const width = Math.round(2 * Math.sqrt(14 * 14 - dy * dy));
+          g.fillRect(cx - Math.floor(width / 2), cy + dy, width, 1);
+        }
       }
       g.fillRect(40, top, 2, 26); g.fillRect(170, top, 2, 34); g.fillRect(276, top, 2, 22);
     } else { // depths: waterline + rising bubbles
       g.fillStyle = c;
       g.fillRect(0, top + 3, VIEW_W, 2);
       for (let i = 0; i < 7; i++) {
-        const bx = 24 + i * 44;
-        const by = top + BAND_H - 6 - ((i * 17 + ((this.time / 3) | 0)) % (BAND_H - 12));
-        g.strokeStyle = c;
-        g.beginPath(); g.arc(bx, by, 2, 0, Math.PI * 2); g.stroke();
+        const bx = Math.round(24 + i * 44);
+        const by = Math.round(top + BAND_H - 6 - ((i * 17 + ((this.time / 3) | 0)) % (BAND_H - 12)));
+        g.fillRect(bx - 1, by - 2, 3, 1);
+        g.fillRect(bx - 2, by - 1, 1, 3);
+        g.fillRect(bx + 2, by - 1, 1, 3);
+        g.fillRect(bx - 1, by + 2, 3, 1);
       }
     }
     g.globalAlpha = 1;
@@ -236,9 +251,15 @@ export class WorldMapState {
         g.fillRect(n.x - 3, y - 3, 6, 6);
       }
       if (i === this.cursor && this.walkFrom < 0) {
-        const r = 8 + Math.sin(this.time * 0.15) * 1.5;
-        g.strokeStyle = (this.time / 15 | 0) % 2 ? '#fff' : '#ffd23e';
-        g.beginPath(); g.arc(n.x, y, r, 0, Math.PI * 2); g.stroke();
+        const r = Math.round(8 + Math.sin(this.time * 0.15) * 1.5);
+        const color = (this.time / 15 | 0) % 2 ? '#fff' : '#ffd23e';
+        g.fillStyle = color;
+        const x1 = Math.round(n.x - r), y1 = Math.round(y - r);
+        const size = r * 2;
+        g.fillRect(x1, y1, size, 1); // top
+        g.fillRect(x1, y1 + size, size + 1, 1); // bottom
+        g.fillRect(x1, y1, 1, size); // left
+        g.fillRect(x1 + size, y1, 1, size); // right
       }
     }
   }

@@ -379,8 +379,12 @@ export class Drone extends Enemy {
   }
   draw(g, ox, oy) {
     if (this.state === 'aim' && (this.timer / 3 | 0) % 2) {
-      g.fillStyle = 'rgba(255,50,50,0.5)';
-      g.fillRect(Math.round(this.x - 2 - ox), Math.round(this.y - 2 - oy), this.w + 4, this.h + 4);
+      g.save();
+      g.globalAlpha = 0.6;
+      g.fillStyle = '#ff3333';
+      const rx = Math.round(this.x - ox), ry = Math.round(this.y - oy);
+      g.fillRect(rx, ry, this.w, this.h);
+      g.restore();
     }
     this.drawFacing(g, S.drone, ox, oy);
   }
@@ -729,10 +733,11 @@ export class Snapperfish extends Enemy {
   }
   draw(g, ox, oy) {
     if (this.state === 'aim' && (this.timer / 3 | 0) % 2) {
-      g.fillStyle = 'rgba(255,80,80,0.45)';
-      g.fillRect(Math.round(this.x - 2 - ox), Math.round(this.y - 2 - oy), this.w + 4, this.h + 4);
+      const f = S.snapper[this.frame()][this.facing >= 0 ? 'r' : 'l'];
+      this.drawSpriteTinted(g, f, ox, oy, '#ff3333', 0.6);
+    } else {
+      this.drawFacing(g, S.snapper, ox, oy);
     }
-    this.drawFacing(g, S.snapper, ox, oy);
   }
 }
 

@@ -187,7 +187,7 @@ export class PlayState {
           // grant a brief grace against further contact with this entity.
           p.y = e.y - p.h - 1;
           p.stompGraceEntity = e;
-          p.stompGraceTimer = 10;
+          p.stompGraceTimer = this.level.meta.water ? 30 : 10;
           p.vy = input.isHeld('jump') ? STOMP_BOUNCE - 1.4 : STOMP_BOUNCE;
           p.jumps = 1;
           sfx.bounce();

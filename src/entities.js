@@ -3,6 +3,35 @@ import { S, drawText } from './sprites.js';
 import { moveAndCollide, aabb } from './physics.js';
 import { sfx } from './audio.js';
 
+let tintCanvas = null;
+function getTintCanvas(w, h) {
+  if (!tintCanvas) {
+    tintCanvas = document.createElement('canvas');
+  }
+  if (tintCanvas.width < w || tintCanvas.height < h) {
+    tintCanvas.width = Math.max(tintCanvas.width, w);
+    tintCanvas.height = Math.max(tintCanvas.height, h);
+  }
+  return tintCanvas;
+}
+
+export function drawTintedSprite(g, spr, x, y, color, alpha) {
+  const temp = getTintCanvas(spr.width, spr.height);
+  const tc = temp.getContext('2d');
+  tc.clearRect(0, 0, spr.width, spr.height);
+  tc.drawImage(spr, 0, 0);
+  tc.globalCompositeOperation = 'source-in';
+  tc.fillStyle = color;
+  tc.fillRect(0, 0, spr.width, spr.height);
+  tc.globalCompositeOperation = 'source-over';
+
+  g.drawImage(spr, x, y);
+  g.save();
+  g.globalAlpha = alpha;
+  g.drawImage(temp, 0, 0, spr.width, spr.height, x, y, spr.width, spr.height);
+  g.restore();
+}
+
 export class Entity {
   constructor(x, y, w, h) {
     this.x = x; this.y = y; this.w = w; this.h = h;
@@ -24,6 +53,11 @@ export class Entity {
     // center sprite horizontally on hitbox, feet-aligned
     g.drawImage(spr, Math.round(this.x + this.w / 2 - spr.width / 2 - ox + dx),
       Math.round(this.y + this.h - spr.height - oy + dy));
+  }
+  drawSpriteTinted(g, spr, ox, oy, color, alpha, dx = 0, dy = 0) {
+    const rx = Math.round(this.x + this.w / 2 - spr.width / 2 - ox + dx);
+    const ry = Math.round(this.y + this.h - spr.height - oy + dy);
+    drawTintedSprite(g, spr, rx, ry, color, alpha);
   }
 }
 
