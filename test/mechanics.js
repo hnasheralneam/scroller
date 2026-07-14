@@ -4,6 +4,7 @@ import { PlayState } from '../src/play.js';
 import { input } from '../src/input.js';
 import { Shellsnail, Snapdragon } from '../src/enemies.js';
 import { Particle } from '../src/entities.js';
+import { STOMP_BOUNCE } from '../src/constants.js';
 
 const out = [];
 const canvas = document.createElement('canvas');
@@ -202,6 +203,76 @@ run('kernel never teleports on top of the player', () => {
     }
   }
   if (minDist < 56) throw new Error(`boss teleported within ${minDist.toFixed(1)}px of the player (want >=56)`);
+});
+
+run('jump: usable short hop, unchanged full jump, tuned stomp bounce', () => {
+  // Drives the real player, so this measures player.js rather than a
+  // re-simulation of it. A hard velocity clamp used to sit on top of the
+  // gravity switch and squash both the short hop (to 0.5 tiles, a 1:7 ratio)
+  // and STOMP_BOUNCE (to 1.4px against its tuned ~1.56 tiles).
+  const play = new PlayState(game, 0);
+  frames(play, 3);
+  const p = play.player;
+
+  const settle = () => {
+    p.x = play.level.playerStart.x;
+    p.y = play.level.playerStart.y;
+    p.vx = 0; p.vy = 0;
+    for (let f = 0; f < 60; f++) {
+      p.invuln = 9999; // ignore the level's enemies entirely
+      input.held = {}; input.pressed = {};
+      play.update();
+    }
+    if (!p.onGround) throw new Error('player never settled on the ground');
+  };
+
+  // Rise achieved from a standing jump, holding `holdFrames` frames.
+  const hop = (holdFrames) => {
+    settle();
+    const y0 = p.y;
+    let peak = y0;
+    for (let f = 0; f < 150; f++) {
+      p.invuln = 9999;
+      input.held = f < holdFrames ? { jump: true } : {};
+      input.pressed = f === 0 ? { jump: true } : {};
+      play.update();
+      peak = Math.min(peak, p.y);
+      if (f > 4 && p.onGround) break;
+    }
+    return y0 - peak;
+  };
+
+  // Rise achieved from an external upward impulse with jump not held.
+  const impulse = (v) => {
+    settle();
+    const y0 = p.y;
+    let peak = y0;
+    p.vy = v;
+    for (let f = 0; f < 150; f++) {
+      p.invuln = 9999;
+      input.held = {}; input.pressed = {};
+      play.update();
+      peak = Math.min(peak, p.y);
+      if (f > 4 && p.onGround) break;
+    }
+    return y0 - peak;
+  };
+
+  const full = hop(999);
+  const short = hop(1);
+  const ratio = full / short;
+
+  // The full jump must be preserved — every authored gap depends on it.
+  if (full < 52 || full > 60) throw new Error(`full jump ${full.toFixed(1)}px, want ~56`);
+  // A short hop has to be genuinely usable, not a token 0.5 tiles.
+  if (short < 22) throw new Error(`short hop only ${short.toFixed(1)}px (${(short / 16).toFixed(2)} tiles)`);
+  // Target band for a tuned platformer is roughly 1:2 .. 1:2.5.
+  if (ratio > 2.6) throw new Error(`min:max hop ratio 1:${ratio.toFixed(1)}, want <= 1:2.6`);
+
+  // STOMP_BOUNCE is an external impulse and must reach the height it is tuned
+  // for (~1.56 tiles) even with jump released.
+  const bounce = impulse(STOMP_BOUNCE);
+  if (bounce < 18) throw new Error(`stomp bounce only ${bounce.toFixed(1)}px (${(bounce / 16).toFixed(2)} tiles)`);
 });
 
 run('particles render in their own color', () => {

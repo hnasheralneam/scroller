@@ -136,8 +136,18 @@ export class Player {
         }
       }
     }
-    // variable jump height: releasing jump cuts ascent into a snappy short hop
-    if (!input.isHeld('jump') && this.vy < -2.0) this.vy = -2.0;
+    // Variable jump height is handled entirely by the gravity switch below:
+    // releasing jump swaps GRAVITY_UP (0.40) for GRAVITY_DOWN (0.85) mid-rise,
+    // which cuts the hop to ~1.8 tiles against a ~3.5 tile full jump — a 1:2
+    // ratio, right where a platformer wants to be.
+    //
+    // There used to be a hard velocity clamp here as well (`if (!held && vy <
+    // -2.0) vy = -2.0`), a second, redundant mechanism fighting the first. It
+    // took the min hop down to 0.5 tiles (a 1:7 ratio — jumps read as binary,
+    // with no usable short hop), and because it ran on the frame *after* an
+    // impulse was applied it also silently destroyed STOMP_BOUNCE: the tuned
+    // -6.5 (~1.56 tiles, per constants.js) was clamped to -2.0 and bounced
+    // 1.4px. Deleting the clamp restores both. See test/mechanics.js.
 
     // --- gravity & tile collision (light going up, heavy coming down) ---
     const grav = this.vy < 0 && input.isHeld('jump') ? GRAVITY_UP : GRAVITY_DOWN;
