@@ -5,18 +5,19 @@
 // Proves the flag is reachable from the start in every non-boss level.
 import { LEVELS } from '../src/levels/index.js';
 import { Level } from '../src/level.js';
+import { stepPlayerGravity } from '../src/physics.js';
 import {
-  TILE, JUMP_VEL, DOUBLE_JUMP_VEL, GRAVITY_UP, GRAVITY_DOWN, MAX_FALL, MAX_RUN,
+  TILE, JUMP_VEL, DOUBLE_JUMP_VEL, MAX_FALL, MAX_RUN,
 } from '../src/constants.js';
 
 const SOLID = new Set([1, 2, 3, 4, 8, 9]);
 const out = [];
 
 // --- derive the jump envelope from real physics -----------------------
-function stepGravity(vy, jumpHeld) {
-  const g = vy < 0 && jumpHeld ? GRAVITY_UP : GRAVITY_DOWN;
-  return Math.min(vy + g, MAX_FALL);
-}
+// stepGravity is imported from physics.js, not re-implemented here: this file
+// used to carry its own copy, which would have quietly stopped matching the
+// player the moment the arc was retuned (apex hangtime, for one).
+const stepGravity = stepPlayerGravity;
 // Trajectory in px (y=0 at launch, negative = up), holding jump throughout;
 // `useDouble` fires the second jump the instant the first arc's vy turns
 // non-negative (i.e. right at its peak, for maximum combined height).

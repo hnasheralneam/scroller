@@ -275,6 +275,45 @@ run('jump: usable short hop, unchanged full jump, tuned stomp bounce', () => {
   if (bounce < 18) throw new Error(`stomp bounce only ${bounce.toFixed(1)}px (${(bounce / 16).toFixed(2)} tiles)`);
 });
 
+run('landing produces feedback, scaled by impact', () => {
+  // physics.js has always computed a justLanded flag and nothing ever read it
+  // for the player: landing had no dust, no squash, no sound.
+  const play = new PlayState(game, 0);
+  frames(play, 3);
+  const p = play.player;
+
+  const drop = (fromPx) => {
+    p.x = play.level.playerStart.x;
+    p.y = play.level.playerStart.y;
+    p.vx = 0; p.vy = 0;
+    for (let f = 0; f < 60; f++) { p.invuln = 9999; input.held = {}; input.pressed = {}; play.update(); }
+    const groundY = p.y;
+    p.y = groundY - fromPx;
+    p.vy = 0;
+    p.squashTimer = 0;
+    const before = play.entities.filter(e => e instanceof Particle).length;
+    for (let f = 0; f < 90; f++) {
+      p.invuln = 9999; input.held = {}; input.pressed = {};
+      play.update();
+      if (p.onGround && f > 0) break;
+    }
+    return {
+      dust: play.entities.filter(e => e instanceof Particle).length - before,
+      squash: p.squashTimer,
+    };
+  };
+
+  // A hard fall kicks up dust and squashes.
+  const hard = drop(120);
+  if (hard.dust <= 0) throw new Error('a hard landing produced no dust');
+  if (hard.squash <= 0) throw new Error('a hard landing produced no squash');
+
+  // Stepping off a 1px lip is not a landing and must stay silent.
+  const tiny = drop(1);
+  if (tiny.dust !== 0) throw new Error(`a 1px step produced ${tiny.dust} dust particles`);
+  if (tiny.squash !== 0) throw new Error('a 1px step produced a squash');
+});
+
 run('particles render in their own color', () => {
   // Particle.draw used to fillRect with no fillStyle, so every burst painted in
   // whatever color leaked from the previous draw call and every palette passed

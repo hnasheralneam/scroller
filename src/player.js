@@ -6,7 +6,7 @@ import {
   WATER_ACCEL, WATER_DIVE_MAX,
 } from './constants.js';
 import { input } from './input.js';
-import { moveAndCollide } from './physics.js';
+import { moveAndCollide, stepPlayerGravity } from './physics.js';
 import { S } from './sprites.js';
 import { PlayerShot, Particle } from './entities.js';
 import { sfx } from './audio.js';
@@ -35,6 +35,7 @@ export class Player {
     this.dying = false;
     this.deathTimer = 0;
     this.animTime = 0;
+    this.squashTimer = 0;
   }
 
   get cx() { return this.x + this.w / 2; }
@@ -59,6 +60,14 @@ export class Player {
     }
 
     const water = !!level.meta.water;
+    // Captured before any collision zeroes vy, so landing feedback can scale
+    // with how hard the player actually hit. Ground state is sampled here too:
+    // moveAndCollide's own justLanded misses landings onto moving platforms,
+    // which are resolved further down in the ride loop.
+    const wasOnGround = this.onGround;
+    const impactVy = this.vy;
+
+    if (this.squashTimer > 0) this.squashTimer--;
 
     // --- horizontal input ---
     const left = input.isHeld('left'), right = input.isHeld('right');
@@ -150,8 +159,7 @@ export class Player {
     // 1.4px. Deleting the clamp restores both. See test/mechanics.js.
 
     // --- gravity & tile collision (light going up, heavy coming down) ---
-    const grav = this.vy < 0 && input.isHeld('jump') ? GRAVITY_UP : GRAVITY_DOWN;
-    this.vy = Math.min(this.vy + grav, MAX_FALL);
+    this.vy = stepPlayerGravity(this.vy, input.isHeld('jump'));
     moveAndCollide(this, level, { dropThrough: input.isHeld('down') && input.justPressed('jump') });
     }
 
@@ -172,6 +180,9 @@ export class Player {
         if (p.trigger) p.trigger();
       }
     }
+
+    // --- landing ---
+    if (!wasOnGround && this.onGround && !water) this.land(play, impactVy);
 
     // --- shooting ---
     if (this.shootCooldown > 0) this.shootCooldown--;
@@ -202,6 +213,28 @@ export class Player {
     if (this.y > level.pxHeight + 24) play.killPlayer();
 
     this.animTime += Math.abs(this.vx) > 0.3 ? 1 : 0;
+  }
+
+  // Touchdown feedback, scaled by impact speed. physics.js computed a
+  // justLanded flag for this from the start and nothing ever read it, so
+  // landing had no dust, no squash, no sound — the fall just stopped.
+  land(play, impactVy) {
+    const MIN_IMPACT = 2.6; // below this it's a step down, not a landing
+    if (impactVy < MIN_IMPACT) return;
+    const power = Math.min(1, (impactVy - MIN_IMPACT) / (MAX_FALL - MIN_IMPACT));
+
+    this.squashTimer = 3 + Math.round(power * 4);
+    sfx.land(power);
+
+    const n = 2 + Math.round(power * 4);
+    for (let i = 0; i < n; i++) {
+      const side = i % 2 ? 1 : -1; // kick dust out from both feet
+      play.addEntity(new Particle(
+        this.cx + side * (1 + Math.random() * this.w * 0.5), this.y + this.h - 1,
+        side * (0.3 + Math.random() * (0.5 + power)), -0.2 - Math.random() * 0.7,
+        '#cfd6e0', 12 + Math.random() * 12, 2, 0.1));
+    }
+    if (power > 0.75) play.camera.shake(3, 1.1);
   }
 
   startDeath() {
@@ -244,6 +277,12 @@ export class Player {
       g.rotate(this.deathTimer * 0.15);
       g.drawImage(img, -img.width / 2, -img.height / 2);
       g.restore();
+    } else if (this.squashTimer > 0) {
+      // Landing squash. Whole-pixel only: the sprites are pixel art and a
+      // fractional scale would resample them into mush. 2px down / 2px out for
+      // the first half of the timer, 1px for the second, so it eases out.
+      const k = this.squashTimer > 3 ? 2 : 1;
+      g.drawImage(img, dx - k, dy + k * 2, img.width + k * 2, img.height - k * 2);
     } else {
       g.drawImage(img, dx, dy);
     }

@@ -1,8 +1,33 @@
-import { TILE, SOLID_TILES, T_PLATFORM } from './constants.js';
+import {
+  TILE, SOLID_TILES, T_PLATFORM,
+  GRAVITY_UP, GRAVITY_DOWN, MAX_FALL, APEX_VY, APEX_GRAVITY,
+} from './constants.js';
 
-// Sweep an entity {x, y, w, h, vx, vy} against the tilemap, axis by axis.
-// Sets e.onGround, e.hitWall, e.hitCeiling, and e.headBumpTile {tx, ty} when
-// the entity knocks its head on a tile while moving up.
+// One frame of player vertical integration: returns the next vy.
+//
+// The single source of truth for the player's jump arc. test/reach.js proves
+// flag reachability by simulating this exact stepping to derive a jump
+// envelope, so it imports this rather than re-implementing it — a second copy
+// would silently stop matching the moment the arc is retuned.
+//
+// Variable jump height lives here: releasing jump mid-rise swaps GRAVITY_UP
+// for the much heavier GRAVITY_DOWN, which is a complete implementation on its
+// own and needs no velocity cut on top of it.
+export function stepPlayerGravity(vy, jumpHeld) {
+  let g = vy < 0 && jumpHeld ? GRAVITY_UP : GRAVITY_DOWN;
+  if (Math.abs(vy) < APEX_VY) g *= APEX_GRAVITY;
+  return Math.min(vy + g, MAX_FALL);
+}
+
+// Move an entity {x, y, w, h, vx, vy} against the tilemap, axis by axis.
+//
+// This is a discrete move-then-resolve, not a swept test: it only checks the
+// destination row/column, which is safe solely because every speed in the game
+// stays below TILE (MAX_FALL 9 < 16). A dash, a spring, or a higher terminal
+// velocity would tunnel straight through geometry with no warning.
+//
+// Sets e.onGround, e.hitWall, e.hitCeiling, e.justLanded, and e.headBumpTile
+// {tx, ty} when the entity knocks its head on a tile while moving up.
 export function moveAndCollide(e, level, opts = {}) {
   const wasOnGround = e.onGround;
   e.onGround = false;

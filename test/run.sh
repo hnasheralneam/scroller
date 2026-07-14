@@ -44,6 +44,7 @@ PAGES=(
   "input.html:15000"
   "save.html:15000"
   "music.html:15000"
+  "camera.html:15000"
   "touch.html:15000"
 )
 

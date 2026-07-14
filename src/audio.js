@@ -103,6 +103,11 @@ export const sfx = {
   stomp()      { noise(0.1, { vol: 0.14 }); beep(180, 0.1, { slide: -120 }); },
   shoot()      { beep(700, 0.08, { slide: -300, type: 'sawtooth', vol: 0.08 }); },
   bounce()     { beep(240, 0.08, { slide: 120 }); },
+  // Soft touchdown thud; `power` (0..1) is how hard the landing was.
+  land(power = 0.5) {
+    noise(0.05 + power * 0.04, { vol: 0.03 + power * 0.06 });
+    beep(110 + power * 40, 0.07, { slide: -60, type: 'triangle', vol: 0.03 + power * 0.05 });
+  },
   powerup()    { [523, 659, 784, 1047].forEach((f, i) => beep(f, 0.1, { delay: i * 0.07, vol: 0.1 })); },
   oneUp()      { [659, 784, 1319, 1568].forEach((f, i) => beep(f, 0.12, { delay: i * 0.09, vol: 0.1 })); },
   hurt()       { beep(280, 0.2, { slide: -180, type: 'sawtooth', vol: 0.12 }); },

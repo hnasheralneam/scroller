@@ -25,6 +25,11 @@ export const DOUBLE_JUMP_VEL = -6.1;
 export const STOMP_BOUNCE = -6.5;
 export const COYOTE_FRAMES = 6;
 export const JUMP_BUFFER_FRAMES = 6;
+// Apex hangtime: gravity is eased while the jump arc is near its peak, which
+// is where the player is actually aiming. Costs a little float at the top and
+// buys a lot of control; it only ever makes a gap easier, never harder.
+export const APEX_VY = 1.2;        // |vy| under which the arc counts as "at apex"
+export const APEX_GRAVITY = 0.55;  // gravity multiplier inside that window
 
 // Underwater physics (levels with meta.water)
 export const WATER_GRAVITY = 0.10;
