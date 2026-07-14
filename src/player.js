@@ -4,15 +4,19 @@ import {
   GLITCH_DURATION, INVULN_FRAMES,
   WATER_GRAVITY, WATER_MAX_SINK, WATER_MAX_RISE, SWIM_VEL, WATER_RUN_MULT,
   WATER_ACCEL, WATER_DIVE_MAX,
+  TILE, SOLID_TILES, T_PLATFORM,
 } from './constants.js';
 import { input } from './input.js';
-import { moveAndCollide, stepPlayerGravity } from './physics.js';
+import { moveAndCollide, stepPlayerGravity, overlapsSolid } from './physics.js';
 import { S } from './sprites.js';
 import { PlayerShot, Particle } from './entities.js';
 import { sfx } from './audio.js';
 
 const SMALL_H = 14;
 const BIG_H = 26;
+// Ceiling on wind/gust push, and how fast it bleeds away once the force stops.
+const MAX_EXTERNAL = 3.0;
+const EXTERNAL_DECAY = 0.88;
 
 export class Player {
   constructor(x, y, power = 'small') {
@@ -21,6 +25,7 @@ export class Player {
     this.x = x + 3;
     this.y = y + 16 - this.h;
     this.vx = 0; this.vy = 0;
+    this.extVx = 0; // wind / gust push, integrated apart from vx
     this.power = power;
     this.facing = 1;
     this.onGround = false;
@@ -66,6 +71,7 @@ export class Player {
     // which are resolved further down in the ride loop.
     const wasOnGround = this.onGround;
     const impactVy = this.vy;
+    const prevFeet = this.y + this.h; // feet before this frame's movement
 
     if (this.squashTimer > 0) this.squashTimer--;
 
@@ -88,12 +94,33 @@ export class Player {
       else this.vx = Math.min(0, this.vx + RUN_DECEL);
     }
 
-    // wind (sky levels)
+    // --- external horizontal forces (wind, boss gusts) ---
+    //
+    // These are integrated separately from the player's own run velocity and
+    // recombined at move time. Adding them straight onto vx (as this used to)
+    // was wrong twice over:
+    //
+    //   * The MAX_RUN clamp above runs first, so holding *any* direction
+    //     re-clamped vx to +-2.5 and wiped the accumulated push. Bracing
+    //     against a gust worked exactly as well as leaning into it, which is
+    //     the opposite of what the comment here promised.
+    //   * With no direction held there is no air friction, so nothing bounded
+    //     them: wind integrates its sine to a standing offset of up to
+    //     2*wind/0.013 ~ 12px/frame, well past MAX_RUN itself.
+    //
+    // Kept separate, a brace genuinely subtracts from the push, and the sum
+    // stays bounded.
+    let force = 0;
     if (level.meta.wind && !this.onGround) {
-      this.vx += Math.sin(level.time * 0.013) * level.meta.wind;
+      force += Math.sin(level.time * 0.013) * level.meta.wind;
     }
-    // boss gust attacks push hard; brace by moving against it
-    if (play.gustForce) this.vx += play.gustForce * (this.onGround ? 0.5 : 1);
+    if (play.gustForce) force += play.gustForce * (this.onGround ? 0.5 : 1);
+    if (force !== 0) {
+      this.extVx = Math.max(-MAX_EXTERNAL, Math.min(MAX_EXTERNAL, this.extVx + force));
+    } else {
+      this.extVx *= EXTERNAL_DECAY; // bleed off once the wind or gust stops
+      if (Math.abs(this.extVx) < 0.02) this.extVx = 0;
+    }
 
     // --- jumping ---
     if (this.onGround) { this.coyote = COYOTE_FRAMES; this.jumps = 0; }
@@ -101,6 +128,20 @@ export class Player {
 
     if (input.justPressed('jump')) this.jumpBuffer = JUMP_BUFFER_FRAMES;
     else if (this.jumpBuffer > 0) this.jumpBuffer--;
+
+    // Down+Jump drops through a one-way platform. This has to be decided
+    // *before* the jump fires. The old code passed
+    // `dropThrough: isHeld('down') && justPressed('jump')` down to
+    // moveAndCollide, but that same justPressed had already triggered the jump
+    // a few lines earlier, so vy was negative by then — and moveAndCollide only
+    // consults dropThrough while vy > 0. The flag was never once observed, and
+    // Down+Jump on a platform simply jumped.
+    const dropping = !water && this.jumpBuffer > 0 && input.isHeld('down') &&
+                     this.onGround && this.standingOnOneWay(level);
+    if (dropping) {
+      this.jumpBuffer = 0;
+      this.coyote = 0; // no coyote-jumping back up off a platform just left
+    }
 
     if (water) {
       // swim stroke: always available, no coyote/double-jump bookkeeping
@@ -125,9 +166,9 @@ export class Player {
       this.vy = Math.min(this.vy + (diving ? WATER_ACCEL : WATER_GRAVITY),
                          diving ? WATER_DIVE_MAX : WATER_MAX_SINK);
       if (this.vy < WATER_MAX_RISE) this.vy = WATER_MAX_RISE;
-      moveAndCollide(this, level, { dropThrough: input.isHeld('down') && input.justPressed('jump') });
+      this.moveWithExternal(level, { dropThrough: input.isHeld('down') });
     } else {
-    if (this.jumpBuffer > 0) {
+    if (this.jumpBuffer > 0 && !dropping) {
       if (this.onGround || this.coyote > 0) {
         this.vy = JUMP_VEL;
         this.jumps = 1;
@@ -160,7 +201,7 @@ export class Player {
 
     // --- gravity & tile collision (light going up, heavy coming down) ---
     this.vy = stepPlayerGravity(this.vy, input.isHeld('jump'));
-    moveAndCollide(this, level, { dropThrough: input.isHeld('down') && input.justPressed('jump') });
+    this.moveWithExternal(level, { dropThrough: dropping });
     }
 
     // head bump on blocks
@@ -171,12 +212,28 @@ export class Player {
       if (p.dead || !p.solidPlatform) continue;
       const overX = this.x + this.w > p.x + 2 && this.x < p.x + p.w - 2;
       const feet = this.y + this.h;
-      if (overX && this.vy >= (p.dy || 0) - 0.01 && feet >= p.y - 1 && feet <= p.y + 9) {
+      // Landing on a platform requires having been above it last frame. The
+      // only gate here used to be "not rising", which is true at the apex of a
+      // jump too — so jumping up through a platform from underneath, if the
+      // apex happened to fall inside the 10px band, yanked the player up onto
+      // it. Compare against the platform's *previous* top, since it moves too.
+      const prevTop = p.y - (p.dy || 0);
+      const wasAbove = prevFeet <= prevTop + 1;
+      if (overX && wasAbove && this.vy >= (p.dy || 0) - 0.01 &&
+          feet >= p.y - 1 && feet <= p.y + 9) {
         this.y = p.y - this.h;
         this.vy = 0;
         this.onGround = true;
         this.jumps = 0;
-        this.x += p.dx || 0;
+        // Carry the rider, but not through a wall: this was an unchecked
+        // `this.x += p.dx`, so a horizontal platform would shove the player
+        // clean into solid tiles.
+        const carry = p.dx || 0;
+        if (carry) {
+          const oldX = this.x;
+          this.x += carry;
+          if (overlapsSolid(this, level)) this.x = oldX;
+        }
         if (p.trigger) p.trigger();
       }
     }
@@ -213,6 +270,40 @@ export class Player {
     if (this.y > level.pxHeight + 24) play.killPlayer();
 
     this.animTime += Math.abs(this.vx) > 0.3 ? 1 : 0;
+  }
+
+  // Is the player standing on a one-way platform (and not also on something
+  // solid, which would win)?
+  standingOnOneWay(level) {
+    const ty = Math.floor((this.y + this.h + 1) / TILE);
+    const tx0 = Math.floor((this.x + 1) / TILE);
+    const tx1 = Math.floor((this.x + this.w - 1) / TILE);
+    let found = false;
+    for (let tx = tx0; tx <= tx1; tx++) {
+      const t = level.tileAt(tx, ty);
+      if (SOLID_TILES.has(t)) return false;
+      if (t === T_PLATFORM) found = true;
+    }
+    return found;
+  }
+
+  // Move with wind/gust folded in, then split it back out.
+  //
+  // `vx` holds only the player's own run velocity, so next frame's accel,
+  // friction and skid logic all reason about what the player is doing rather
+  // than about whatever the weather added.
+  moveWithExternal(level, opts) {
+    const inputVx = this.vx;
+    this.vx = inputVx + this.extVx;
+    moveAndCollide(this, level, opts);
+    if (this.hitWall) {
+      // Braced against a wall: kill the push rather than let it keep building
+      // against geometry that isn't going to move.
+      this.vx = 0;
+      this.extVx = 0;
+    } else {
+      this.vx = inputVx;
+    }
   }
 
   // Touchdown feedback, scaled by impact speed. physics.js computed a

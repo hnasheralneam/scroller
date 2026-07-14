@@ -54,7 +54,12 @@ export function moveAndCollide(e, level, opts = {}) {
   }
 
   // --- vertical ---
-  const prevBottom = e.y + e.h - e.vy; // bottom before this move
+  // e.y is still the pre-move position here, so the bottom before this move is
+  // just e.y + e.h. This used to subtract e.vy as well, which rewound it an
+  // extra frame and made the one-way check below re-catch anything that had
+  // only just passed through a platform: a drop-through moved the player ~0.5px
+  // clear on frame 1 and got yanked back up onto the platform on frame 2.
+  const prevBottom = e.y + e.h;
   e.y += e.vy;
   if (e.vy > 0) {
     const ty = Math.floor((e.y + e.h - 0.01) / TILE);
@@ -95,6 +100,21 @@ export function moveAndCollide(e, level, opts = {}) {
   if (e.x > maxX) { e.x = maxX; e.vx = Math.min(0, e.vx); }
 
   e.justLanded = e.onGround && !wasOnGround;
+}
+
+// Would this box be inside solid geometry? For validating a teleport or a
+// carried displacement, neither of which goes through moveAndCollide.
+export function overlapsSolid(e, level) {
+  const tx0 = Math.floor(e.x / TILE);
+  const tx1 = Math.floor((e.x + e.w - 0.01) / TILE);
+  const ty0 = Math.floor(e.y / TILE);
+  const ty1 = Math.floor((e.y + e.h - 0.01) / TILE);
+  for (let ty = ty0; ty <= ty1; ty++) {
+    for (let tx = tx0; tx <= tx1; tx++) {
+      if (SOLID_TILES.has(level.tileAt(tx, ty))) return true;
+    }
+  }
+  return false;
 }
 
 export function aabb(a, b) {

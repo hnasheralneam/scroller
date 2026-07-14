@@ -4,7 +4,7 @@ import { PlayState } from '../src/play.js';
 import { input } from '../src/input.js';
 import { Shellsnail, Snapdragon } from '../src/enemies.js';
 import { Particle } from '../src/entities.js';
-import { STOMP_BOUNCE } from '../src/constants.js';
+import { STOMP_BOUNCE, TILE, T_PLATFORM } from '../src/constants.js';
 
 const out = [];
 const canvas = document.createElement('canvas');
@@ -273,6 +273,104 @@ run('jump: usable short hop, unchanged full jump, tuned stomp bounce', () => {
   // for (~1.56 tiles) even with jump released.
   const bounce = impulse(STOMP_BOUNCE);
   if (bounce < 18) throw new Error(`stomp bounce only ${bounce.toFixed(1)}px (${(bounce / 16).toFixed(2)} tiles)`);
+});
+
+run('down+jump drops through a one-way platform', () => {
+  // This was dead code: the dropThrough flag was computed from the same
+  // justPressed that had already fired the jump, so vy was negative by the
+  // time moveAndCollide looked at it — and it only consults the flag while
+  // vy > 0. Down+Jump on a platform just jumped.
+  const play = new PlayState(game, 0);
+  frames(play, 3);
+  const p = play.player;
+  const lv = play.level;
+
+  // Find an authored one-way platform ('-' => T_PLATFORM) and stand on it.
+  let spot = null;
+  for (let ty = 2; ty < lv.h - 2 && !spot; ty++) {
+    for (let tx = 2; tx < lv.w - 2; tx++) {
+      if (lv.tileAt(tx, ty) === T_PLATFORM) { spot = { tx, ty }; break; }
+    }
+  }
+  if (!spot) throw new Error('no one-way platform in level 0 to test with');
+
+  const stand = () => {
+    p.x = spot.tx * TILE + 2;
+    p.y = spot.ty * TILE - p.h;
+    p.vx = 0; p.vy = 0;
+    for (let f = 0; f < 20; f++) {
+      p.invuln = 9999; input.held = {}; input.pressed = {};
+      play.update();
+    }
+  };
+
+  // Plain jump from the platform goes UP.
+  stand();
+  if (!p.onGround) throw new Error('player did not settle on the platform');
+  const restY = p.y;
+  for (let f = 0; f < 8; f++) {
+    p.invuln = 9999;
+    input.held = { jump: true };
+    input.pressed = f === 0 ? { jump: true } : {};
+    play.update();
+  }
+  if (p.y >= restY) throw new Error('plain jump did not lift off the platform');
+
+  // Down+Jump goes DOWN, through it.
+  stand();
+  const fromY = p.y;
+  for (let f = 0; f < 24; f++) {
+    p.invuln = 9999;
+    input.held = { down: true, jump: f === 0 };
+    input.pressed = f === 0 ? { jump: true } : {};
+    play.update();
+  }
+  if (p.y <= fromY + TILE) {
+    throw new Error(`down+jump did not drop through (y ${fromY.toFixed(1)} -> ${p.y.toFixed(1)})`);
+  }
+});
+
+run('wind is bounded and can be braced against', () => {
+  // Forces used to be added straight onto vx *after* the MAX_RUN clamp, so
+  // holding any direction wiped the push (bracing into a gust worked exactly
+  // as well as bracing against it), and with no input held nothing bounded
+  // them at all.
+  const play = new PlayState(game, 10); // WINDY WAY (meta.wind)
+  frames(play, 3);
+  const p = play.player;
+  if (!play.level.meta.wind) throw new Error('level 10 has no wind to test');
+
+  // Airborne, no input, for a long time: the push must stay bounded.
+  p.x = 60; p.y = 60;
+  let peak = 0;
+  for (let f = 0; f < 600; f++) {
+    p.invuln = 9999;
+    input.held = {}; input.pressed = {};
+    p.y = 60; p.vy = 0;          // hold it airborne
+    p.onGround = false;
+    play.update();
+    peak = Math.max(peak, Math.abs(p.extVx));
+  }
+  if (peak > 3.01) throw new Error(`wind accumulated to ${peak.toFixed(2)}px/frame (unbounded)`);
+
+  // Bracing must beat leaning in: drive both and compare net drift.
+  const drift = (dir) => {
+    const s = new PlayState(game, 10);
+    for (let f = 0; f < 3; f++) { input.held = {}; input.pressed = {}; s.update(); }
+    const q = s.player;
+    const x0 = q.x;
+    for (let f = 0; f < 180; f++) {
+      q.invuln = 9999;
+      input.held = dir > 0 ? { right: true } : { left: true };
+      input.pressed = {};
+      q.y = 60; q.vy = 0; q.onGround = false;
+      s.update();
+    }
+    return q.x - x0;
+  };
+  if (!(drift(1) > drift(-1))) {
+    throw new Error('holding right did not move the player further right than holding left');
+  }
 });
 
 run('landing produces feedback, scaled by impact', () => {

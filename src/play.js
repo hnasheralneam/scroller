@@ -5,7 +5,7 @@ import { input } from './input.js';
 import { Level } from './level.js';
 import { Player } from './player.js';
 import { Camera } from './camera.js';
-import { aabb } from './physics.js';
+import { aabb, overlapsSolid } from './physics.js';
 import { S, drawTextCentered } from './sprites.js';
 import { isTouchUI } from './touch.js';
 import {
@@ -187,7 +187,13 @@ export class PlayState {
           // boss can otherwise re-overlap the player before the bounce lifts
           // them clear, turning a clean stomp into a bogus hit next frame) and
           // grant a brief grace against further contact with this entity.
+          // ...but never into a wall. This teleport had no collision check, so
+          // stomping something under a low ceiling placed the player inside
+          // solid tiles. The grace timer below already covers the re-hit case,
+          // so declining the snap is safe.
+          const snapY = p.y;
           p.y = e.y - p.h - 1;
+          if (overlapsSolid(p, this.level)) p.y = snapY;
           p.stompGraceEntity = e;
           p.stompGraceTimer = this.level.meta.water ? 30 : 10;
           p.vy = input.isHeld('jump') ? STOMP_BOUNCE - 1.4 : STOMP_BOUNCE;
