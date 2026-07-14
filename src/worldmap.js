@@ -48,7 +48,7 @@ function buildNodes() {
 export class WorldMapState {
   constructor(game, cursor = 0) {
     this.game = game;
-    this.cursor = Math.min(cursor, game.save.unlocked, LAST_LEVEL);
+    this.cursor = Math.min(cursor, game.unlockedLevels, LAST_LEVEL);
     this.time = 0;
     this.nodes = buildNodes();
     this.mapH = PAD_TOP + WORLDS.length * BAND_H + 30;
@@ -70,7 +70,7 @@ export class WorldMapState {
   }
   update() {
     this.time++;
-    const max = Math.min(this.game.save.unlocked, LAST_LEVEL);
+    const max = Math.min(this.game.unlockedLevels, LAST_LEVEL);
 
     if (this.walkFrom >= 0) {
       // buffer one step of input while walking
@@ -117,7 +117,7 @@ export class WorldMapState {
     g.fillStyle = '#0c0e1c';
     g.fillRect(0, 0, VIEW_W, VIEW_H);
     const cam = Math.round(this.camY);
-    const max = Math.min(this.game.save.unlocked, LAST_LEVEL);
+    const max = Math.min(this.game.unlockedLevels, LAST_LEVEL);
 
     for (let w = 0; w < WORLDS.length; w++) this.drawBand(g, w, cam, max >= WORLD_STARTS[w]);
     this.drawPath(g, cam, max);

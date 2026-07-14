@@ -1200,11 +1200,6 @@ export class AbyssalLeviathan extends Boss {
   takeHit(ctx) {
     if (this.dying) return false;
 
-    const isTest = typeof window !== 'undefined' && window.location.href.includes('test');
-    if (isTest) {
-      return super.takeHit(ctx);
-    }
-
     if (this.shieldActive && this.state !== 'stunned') {
       sfx.bump();
       this.shieldRipple = 0.4;

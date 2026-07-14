@@ -84,6 +84,7 @@ export class PlayState {
   // -------------------------------------------------------------------------
   update() {
     this.level.update();
+    this.camera.tick();
     if (this.bossIntro > 0) {
       // cinematic hold: world keeps animating, nothing moves yet
       if (this.bossIntro < 160 && (input.justPressed('confirm') || input.justPressed('jump'))) {

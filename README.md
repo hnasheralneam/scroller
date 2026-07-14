@@ -54,10 +54,32 @@ Checkpoints (small flags) save your respawn point within a level. Progress
 
 ## Dev notes
 
-- `index.html#level=N` jumps straight into level N (0–34).
-- `test/headless.html`, `test/mechanics.html`, `test/reach.html`,
-  `test/maptest.html`, and `test/boot.html` are headless test pages; dump
-  their DOM with a headless browser to run the smoke tests, mechanics tests,
-  flag-reachability checks, world-map tests, and a boot smoke test.
+- `index.html#level=N` jumps straight into level N (0–34). The unlock it grants
+  is session-only and is never written to the save.
 - Level maps are sparse ASCII placements in `src/levels/world*.js`
   (see the legend in `src/level.js`).
+
+## Tests
+
+```sh
+./test/run.sh          # PORT=9000 ./test/run.sh to use another port
+```
+
+Needs only `python3` and a `chromium` binary — no node, no install step. It
+serves the repo, opens each page in headless Chromium, and reads the pass/fail
+verdict each one writes to `document.title`. Every page also runs standalone in
+a normal browser if you'd rather read the output directly.
+
+| Page | Covers |
+|---|---|
+| `boot.html` | boots `main.js` for 300 real frames; asserts no errors |
+| `headless.html` | every level driven ~20s, plus every boss arena to a kill; static level-data checks |
+| `reach.html` | BFS-proves the flag is reachable, using a jump envelope simulated from the real physics constants |
+| `mechanics.html` | power states, shooting, glitch FX, stomps, shells, boss gating, particle color, camera shake |
+| `content.html` | content invariants: checkpoints, power blocks, registered map chars, spawn-registry agreement |
+| `input.html` | keyboard ref-counting, focus loss, pause-menu navigation |
+| `save.html` | save coercion, clamping, corrupt/absent data |
+| `music.html` | scheduler backlog handling and recovery |
+| `maptest.html` | world-map cursor stepping |
+| `stomp_repro.html` | regression: stomping a rising boss must never hurt the player |
+| `touch.html` | synthetic pointer events against the touch overlay |

@@ -26,6 +26,15 @@ export class PauseMenu {
     if (input.justPressed('down')) { this.cursor = (this.cursor + 1) % items.length; sfx.select(); }
     if (input.justPressed('up')) { this.cursor = (this.cursor + items.length - 1) % items.length; sfx.select(); }
 
+    // ArrowUp/W are mapped to both `up` and `jump`, so a single press would
+    // move the cursor and then activate whatever it landed on — pressing Up on
+    // the main screen selected RESUME and instantly closed the menu. A press
+    // that moved the cursor is navigation, never confirmation; Space/Z/Enter
+    // (which don't mean `up`) still confirm.
+    const navigated = input.justPressed('up') || input.justPressed('down');
+    const confirmed = !navigated &&
+      (input.justPressed('confirm') || input.justPressed('jump'));
+
     if (this.screen === 'settings') {
       const save = this.game.save;
       const dir = (input.justPressed('right') ? 1 : 0) - (input.justPressed('left') ? 1 : 0);
@@ -41,7 +50,7 @@ export class PauseMenu {
         }
       }
       if (input.justPressed('pause')) { this.screen = 'main'; this.cursor = 1; sfx.select(); return true; }
-      if (input.justPressed('confirm') || input.justPressed('jump')) {
+      if (confirmed) {
         if (this.cursor === 2) { this.screen = 'main'; this.cursor = 1; sfx.select(); }
       }
       return true;
@@ -49,7 +58,7 @@ export class PauseMenu {
 
     // main screen
     if (input.justPressed('pause')) return false;
-    if (input.justPressed('confirm') || input.justPressed('jump')) {
+    if (confirmed) {
       const item = MAIN_ITEMS[this.cursor];
       if (item === 'RESUME') { sfx.confirm(); return false; }
       if (item === 'SETTINGS') { this.screen = 'settings'; this.cursor = 0; sfx.confirm(); return true; }

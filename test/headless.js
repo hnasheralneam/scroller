@@ -3,6 +3,7 @@
 import { LEVELS } from '../src/levels/index.js';
 import { PlayState } from '../src/play.js';
 import { input } from '../src/input.js';
+import { Boss } from '../src/bosses.js';
 
 const out = [];
 const canvas = document.createElement('canvas');
@@ -77,7 +78,11 @@ for (const i of BOSS_INDICES) {
       if (play.boss) states.add(play.boss.state);
       if (f > 0 && f % 350 === 0 && play.boss && !play.boss.dying) {
         play.boss.hitInvuln = 0;
-        play.boss.takeHit(play.ctx());
+        // Force damage through the base implementation so per-boss gating (the
+        // Leviathan's shield) can't stall this kill-path check. The gating
+        // itself is covered properly in mechanics.js — this test only cares
+        // that a boss driven to 0 hp clears the level.
+        Boss.prototype.takeHit.call(play.boss, play.ctx());
       }
       play.update();
       if (f % 4 === 0) play.draw(g);

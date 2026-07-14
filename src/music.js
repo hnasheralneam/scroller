@@ -155,7 +155,11 @@ class MusicPlayer {
   }
 
   play(name) {
-    if (this.current === name) return;
+    // The `timer` half of this guard matters: tick()'s catch and a failed
+    // start() both stop the scheduler without clearing `current`, so guarding
+    // on the name alone left every later play(name) a no-op and the game
+    // permanently silent until some *other* song was requested.
+    if (this.current === name && this.timer) return;
     this.current = name;
     if (!SONGS[name]) { this.stopScheduler(); return; }
     if (!isUnlocked()) return; // will start on unlock
@@ -187,6 +191,14 @@ class MusicPlayer {
     try {
       const a = ac();
       const stepDur = 60 / song.bpm / 4;
+      // A backgrounded tab throttles setInterval to >=1s while the audio clock
+      // keeps running, so nextTime falls behind currentTime. Draining that
+      // backlog would hand WebAudio dozens of start times already in the past,
+      // and it fires those immediately — every missed note at once the moment
+      // you tab back. Normally nextTime runs a full LOOKAHEAD ahead, so being
+      // behind at all means we were throttled: drop the backlog, resume from
+      // now, and keep `step` so the song picks up where it left off.
+      if (this.nextTime < a.currentTime) this.nextTime = a.currentTime + 0.06;
       while (this.nextTime < a.currentTime + LOOKAHEAD) {
         this.scheduleStep(song, this.step, this.nextTime, stepDur);
         this.step++;

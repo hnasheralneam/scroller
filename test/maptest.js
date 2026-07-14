@@ -12,6 +12,9 @@ const g = canvas.getContext('2d');
 
 const game = {
   save: { unlocked: LEVELS.length - 1 },
+  // Mirrors Game.unlockedLevels: the map reads this, not save.unlocked, so the
+  // #level= dev shortcut can widen navigation without touching the save.
+  get unlockedLevels() { return Math.max(this.save.unlocked, this.unlockedOverride ?? 0); },
   started: -1,
   startLevel(i) { this.started = i; },
   toTitle() {},

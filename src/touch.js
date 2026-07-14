@@ -186,20 +186,22 @@ export function initTouch(game) {
   }
 
   // ---- action press/release, ref-counted across pointers ------------------
-  // Mirrors the keydown/keyup branches in input.js.
+  // Counts pointers per action locally (for the button highlight), and defers
+  // the actual held/pressed bookkeeping to input.js, which counts across every
+  // source — so a key and a touch holding the same action can't clear it out
+  // from under each other.
   const holdCounts = {};
   function press(a) {
     holdCounts[a] = (holdCounts[a] || 0) + 1;
     if (holdCounts[a] === 1) {
-      if (!input.held[a]) input.pressed[a] = true;
-      input.held[a] = true;
+      input.press(a);
       btnEls[a] && btnEls[a].classList.add('pressed');
     }
   }
   function release(a) {
     holdCounts[a] = Math.max(0, (holdCounts[a] || 0) - 1);
     if (holdCounts[a] === 0) {
-      input.held[a] = false;
+      input.release(a);
       btnEls[a] && btnEls[a].classList.remove('pressed');
     }
   }
@@ -245,7 +247,8 @@ export function initTouch(game) {
   root.addEventListener('pointercancel', end);
   root.addEventListener('lostpointercapture', end);
 
-  // input.js clears all held state on window blur; keep our refcounts in sync.
+  // input.js drops all held state on blur/hide; release our pointers too so the
+  // local refcounts (and the button highlights) don't survive the reset.
   window.addEventListener('blur', dropAll);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') dropAll();

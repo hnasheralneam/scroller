@@ -67,9 +67,16 @@ class Game {
     this.power = 'small';
   }
 
+  // How far the world map may be navigated this session. Normally that's the
+  // saved progress; the #level= dev shortcut widens it in memory only, so the
+  // shortcut can never leak into the player's save.
+  get unlockedLevels() {
+    return Math.max(this.save.unlocked, this.unlockedOverride ?? 0);
+  }
+
   toTitle() { this.state = new TitleState(this); }
   toWorldMap(cursor) {
-    this.state = new WorldMapState(this, cursor !== undefined ? cursor : this.save.unlocked);
+    this.state = new WorldMapState(this, cursor !== undefined ? cursor : this.unlockedLevels);
   }
 
   startLevel(index, respawn = null) {
@@ -136,11 +143,19 @@ initTouch(game);
 
 // Dev shortcut: open index.html#level=7 to jump straight into a level
 // (combines with #touch, e.g. #level=7&touch)
+//
+// The unlock is deliberately session-only: it used to be written into
+// game.save, which the next writeSave (any level clear, any volume tweak)
+// committed permanently — so one #level=34 visit unlocked the whole game for
+// good. `unlockedOverride` lives in memory and is never persisted.
 const hashLevel = location.hash.match(/level=(\d+)/);
 if (hashLevel) {
-  const idx = Math.min(LEVELS.length - 1, parseInt(hashLevel[1], 10));
-  game.save.unlocked = Math.max(game.save.unlocked, idx);
-  game.startLevel(idx);
+  const parsed = parseInt(hashLevel[1], 10);
+  if (Number.isFinite(parsed)) {
+    const idx = Math.max(0, Math.min(LEVELS.length - 1, parsed));
+    game.unlockedOverride = idx;
+    game.startLevel(idx);
+  }
 }
 
 // Fixed 60Hz update, rAF render

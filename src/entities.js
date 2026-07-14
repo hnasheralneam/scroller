@@ -77,6 +77,7 @@ export class Particle extends Entity {
     if (--this.life <= 0) this.dead = true;
   }
   draw(g, ox, oy) {
+    g.fillStyle = this.color;
     g.fillRect(Math.round(this.x - ox), Math.round(this.y - oy), this.w, this.h);
   }
 }

@@ -3,6 +3,7 @@
 import { PlayState } from '../src/play.js';
 import { input } from '../src/input.js';
 import { Shellsnail, Snapdragon } from '../src/enemies.js';
+import { Particle } from '../src/entities.js';
 
 const out = [];
 const canvas = document.createElement('canvas');
@@ -201,6 +202,73 @@ run('kernel never teleports on top of the player', () => {
     }
   }
   if (minDist < 56) throw new Error(`boss teleported within ${minDist.toFixed(1)}px of the player (want >=56)`);
+});
+
+run('particles render in their own color', () => {
+  // Particle.draw used to fillRect with no fillStyle, so every burst painted in
+  // whatever color leaked from the previous draw call and every palette passed
+  // to burst() was dead data. Poison fillStyle first to catch a regression.
+  const c = document.createElement('canvas');
+  c.width = 32; c.height = 32;
+  const cg = c.getContext('2d');
+  cg.fillStyle = '#ffe14a'; // the leaked lava yellow that used to win
+
+  const read = (x, y) => {
+    const d = cg.getImageData(x, y, 1, 1).data;
+    return '#' + [d[0], d[1], d[2]].map(v => v.toString(16).padStart(2, '0')).join('');
+  };
+
+  new Particle(4, 4, 0, 0, '#ff00ff', 40, 2, 0).draw(cg, 0, 0);
+  if (read(4, 4) !== '#ff00ff') throw new Error(`painted ${read(4, 4)}, want #ff00ff`);
+
+  new Particle(20, 20, 0, 0, '#00ff88', 40, 2, 0).draw(cg, 0, 0);
+  if (read(20, 20) !== '#00ff88') throw new Error(`painted ${read(20, 20)}, want #00ff88`);
+});
+
+run('camera shake is sampled once per frame for every layer', () => {
+  // ox()/oy() used to roll Math.random() per call, and play.js and level.js
+  // each call them separately — so the tilemap and the entities on top of it
+  // shook by different offsets and visibly tore apart.
+  const play = new PlayState(game, 4);
+  frames(play, 5);
+  play.camera.shake(30, 6);
+  play.camera.tick();
+  const a = [play.camera.ox(), play.camera.oy()];
+  const b = [play.camera.ox(), play.camera.oy()];
+  if (a[0] !== b[0] || a[1] !== b[1]) {
+    throw new Error(`offsets differ within a frame: ${a} vs ${b}`);
+  }
+  // ...and it must actually decay, even when follow() is never called.
+  const before = play.camera.shakeTimer;
+  play.camera.tick();
+  if (play.camera.shakeTimer !== before - 1) throw new Error('shake timer did not decay in tick()');
+});
+
+run('leviathan shield blocks damage until the pearl stun', () => {
+  // This is the mechanic that a `window.location.href.includes('test')`
+  // backdoor in takeHit used to switch off — which meant the shield and the
+  // whole pearl puzzle were never actually exercised by any test.
+  const play = new PlayState(game, 34); // LEVIATHAN'S TRENCH
+  frames(play, 5);
+  const boss = play.boss;
+  const ctx = play.ctx();
+  const hp = boss.hp;
+
+  // Shielded and swimming: hits bounce off.
+  boss.shieldActive = true;
+  boss.state = 'swim';
+  boss.hitInvuln = 0;
+  if (boss.takeHit(ctx) !== false) throw new Error('shielded hit was accepted');
+  if (boss.hp !== hp) throw new Error('shielded hit dealt damage');
+
+  // A pearl popped during the vortex is the one honest way through.
+  boss.state = 'vortex';
+  boss.pearlExplode(ctx);
+  if (boss.state !== 'stunned') throw new Error('pearl did not stun during vortex');
+  boss.hitInvuln = 0;
+  if (boss.takeHit(ctx) !== true) throw new Error('hit refused while stunned');
+  if (boss.hp !== hp - 1) throw new Error('stunned hit dealt no damage');
+  if (!boss.shieldActive) throw new Error('shield did not re-arm after the hit');
 });
 
 document.body.innerText = out.join('\n');

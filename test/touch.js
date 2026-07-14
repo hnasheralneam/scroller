@@ -96,6 +96,6 @@ try {
   failures++;
 }
 
-document.title = failures === 0 ? 'OK' : 'FAIL';
+document.title = failures === 0 ? 'ALLPASS' : 'FAIL';
 document.body.textContent = out.join('\n') + `\n${failures === 0 ? 'ALL PASS' : failures + ' FAILURES'}`;
 document.body.style.whiteSpace = 'pre';

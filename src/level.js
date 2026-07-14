@@ -4,7 +4,7 @@ import {
 } from './constants.js';
 import { makeTileSkin, drawText } from './sprites.js';
 
-const TILE_CHARS = {
+export const TILE_CHARS = {
   '#': T_GROUND,
   'B': T_BRICK,
   '|': T_PILLAR,
@@ -14,15 +14,17 @@ const TILE_CHARS = {
 };
 
 // Blocks with contents
-const BLOCK_CHARS = {
+export const BLOCK_CHARS = {
   '?': { tile: T_QBLOCK, content: 'coin' },
   'U': { tile: T_QBLOCK, content: 'power' },
   '*': { tile: T_GLITCHBLOCK, content: 'glitch' },
   '1': { tile: T_BRICK, content: 'oneup' },
 };
 
-// Everything else becomes an entity spawn
-const SPAWN_CHARS = new Set([
+// Everything else becomes an entity spawn. Kept in sync with ENEMY_FACTORY
+// (enemies.js) and the special cases in PlayState.spawnFromChar by
+// test/content.js — an unlisted char is silently dropped at load.
+export const SPAWN_CHARS = new Set([
   'P', 'C', 'F', 'o', 'M', 'V', '%', 'X',
   'b', 'h', 'n', 'a', 's', 'k', 'p', 't', 'd', 'f', 'g', 'i', 'l', 'r',
   'e', 'w', 'j', 'q', 'y', 'z', 'u',
