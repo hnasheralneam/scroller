@@ -58,6 +58,28 @@ export class Boss extends Enemy {
 
   onPhaseChange(ctx) {} // per-boss hook
 
+  // March a line of erupting columns away from the boss, toward the player.
+  //
+  // The Golem's crystal wave, the Flame King's pillars and the Coatl's vines
+  // were three near-identical copies of this loop, differing only in count,
+  // spacing, height and style — and all three hardcoded the arena floor at
+  // `pxHeight - 3 * TILE`. Each column now finds the floor beneath itself, so
+  // an arena can have terraces, pits or steps and the columns still erupt out
+  // of whatever is actually underneath them.
+  marchColumns(ctx, { count, spacing, first, height, style, warn0, warnStep, active }) {
+    const p = ctx.player;
+    const dir = Math.sign(p.cx - this.cx) || 1;
+    for (let i = 0; i < count; i++) {
+      const ex = this.cx + dir * (first + i * spacing);
+      if (ex < 8 || ex > ctx.level.pxWidth - 8) break;
+      // Search downward from the boss's own feet so a column lands on the
+      // terrace the fight is happening on, not one under an overhang.
+      const groundY = ctx.level.floorYAt(ex, this.y + this.h);
+      ctx.play.addEntity(new EruptColumn(ex, groundY, height,
+        { warn: warn0 + i * warnStep, active, style }));
+    }
+  }
+
   // Pulsing aura for phase 2+ (and a white flash right after a phase shift).
   drawAura(g, ox, oy) {
     if (this.phase <= 1 && this.phaseFlash <= 0) return;
@@ -330,14 +352,10 @@ export class CrystalGolem extends Boss {
           this.state = 'wave';
           this.timer = 40;
           this.vx = 0;
-          const dir = Math.sign(p.cx - this.cx) || 1;
-          const groundY = ctx.level.pxHeight - 3 * TILE;
-          for (let i = 0; i < 6; i++) {
-            const ex = this.cx + dir * (26 + i * 26);
-            if (ex < 8 || ex > ctx.level.pxWidth - 8) break;
-            ctx.play.addEntity(new EruptColumn(ex, groundY, 30,
-              { warn: 26 + i * 9, active: 40, style: 'crystal' }));
-          }
+          this.marchColumns(ctx, {
+            count: 6, first: 26, spacing: 26, height: 30,
+            style: 'crystal', warn0: 26, warnStep: 9, active: 40,
+          });
           sfx.breakBlock();
         } else {
           // spin charge across the arena
@@ -488,7 +506,8 @@ export class StormBird extends Boss {
       // crash when the tile under the beak is solid (works on any terrace)
       const tx = Math.floor(this.cx / TILE);
       const ty = Math.floor((this.y + this.h) / TILE);
-      if (SOLID_TILES.has(ctx.level.tileAt(tx, ty)) || this.y + this.h >= ctx.level.pxHeight - 3 * TILE) {
+      if (SOLID_TILES.has(ctx.level.tileAt(tx, ty)) ||
+          this.y + this.h >= ctx.level.floorYAt(this.cx, this.y)) {
         this.y = ty * TILE - this.h;
         this.state = 'stunned';
         this.timer = 120;
@@ -616,7 +635,9 @@ export class Kernel extends Boss {
               { warn: 55, fire: 90, drift: 0.9 }));
             // phase 2: a third beam rises from the floor
             if (this.phase >= 2) {
-              ctx.play.addEntity(new LaserBeam(0, ctx.level.pxHeight - 3 * TILE - 10, ctx.level.pxWidth,
+              // Ride whatever the floor actually is under the player.
+              const floorY = ctx.level.floorYAt(p.cx, p.y);
+              ctx.play.addEntity(new LaserBeam(0, floorY - 10, ctx.level.pxWidth,
                 { warn: 75, fire: 90, drift: -0.9 }));
             }
           } else if (pick === 2) {
@@ -770,14 +791,10 @@ export class FlameKing extends Boss {
           sfx.stomp();
         } else if (pick === 3) {
           // flame pillars marching toward the player
-          const dir = Math.sign(p.cx - this.cx) || 1;
-          const groundY = ctx.level.pxHeight - 3 * TILE;
-          for (let i = 0; i < 5; i++) {
-            const ex = this.cx + dir * (28 + i * 30);
-            if (ex < 8 || ex > ctx.level.pxWidth - 8) break;
-            ctx.play.addEntity(new EruptColumn(ex, groundY, 34,
-              { warn: 28 + i * 10, active: 42, style: 'fire' }));
-          }
+          this.marchColumns(ctx, {
+            count: 5, first: 28, spacing: 30, height: 34,
+            style: 'fire', warn0: 28, warnStep: 10, active: 42,
+          });
           sfx.shoot();
         } else {
           this.state = 'dashWarn';
@@ -890,14 +907,10 @@ export class Coatl extends Boss {
           sfx.shoot();
         } else if (pick === 1) {
           // whipping vines march toward the player
-          const dir = Math.sign(p.cx - this.cx) || 1;
-          const groundY = ctx.level.pxHeight - 3 * TILE;
-          for (let i = 0; i < 5; i++) {
-            const ex = this.cx + dir * (28 + i * 30);
-            if (ex < 8 || ex > ctx.level.pxWidth - 8) break;
-            ctx.play.addEntity(new EruptColumn(ex, groundY, 40,
-              { warn: 26 + i * 10, active: 44, style: 'vine' }));
-          }
+          this.marchColumns(ctx, {
+            count: 5, first: 28, spacing: 30, height: 40,
+            style: 'vine', warn0: 26, warnStep: 10, active: 44,
+          });
           sfx.shoot();
         } else if (pick === 3) {
           // coil-charge dash across the arena
@@ -1042,7 +1055,8 @@ export class AbyssalLeviathan extends Boss {
       if (--this.geyserTimer <= 0) {
         this.geyserTimer = 160;
         const gx = Math.random() < 0.5 ? 4 * TILE : lv.pxWidth - 5 * TILE;
-        ctx.play.addEntity(new EruptColumn(gx, lv.pxHeight - 2 * TILE, 6 * TILE, { warn: 50, style: 'geyser' }));
+        ctx.play.addEntity(new EruptColumn(gx, lv.floorYAt(gx, this.cy), 6 * TILE,
+          { warn: 50, style: 'geyser' }));
         sfx.warn();
       }
     }
@@ -1488,7 +1502,8 @@ export class LeviMine extends Enemy {
     this.t += 0.04;
     this.y += 0.15;
     this.x += Math.sin(this.t) * 0.3;
-    if (--this.life <= 0 || this.y > ctx.level.pxHeight - 2 * TILE) {
+    // Pop on the seabed, wherever the seabed actually is.
+    if (--this.life <= 0 || this.y + this.h >= ctx.level.floorYAt(this.cx, this.y)) {
       this.dead = true;
       burst(ctx.play, this.cx, this.cy, this.deathColors, 8, 1.8, 24);
     }

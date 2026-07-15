@@ -86,17 +86,28 @@ export const world6 = [
     }),
   },
   {
-    // Idol steps to the right, a lone power block, and Coatl coiled in the
-    // center of the ruined shrine.
+    // A collapsed shrine, not an empty box. Two things here are load-bearing:
+    //
+    //  * The broken pillars. Coatl's coil-charge already ends the instant it
+    //    hits a wall — that counterplay has existed in the code the whole time
+    //    and could never once fire, because the arena was a flat rectangle with
+    //    nothing to hit. Put a pillar between you and the charge and it breaks.
+    //  * The stepped terraces. Its whipping vines erupt from whatever ground is
+    //    actually beneath them now, so they climb the steps instead of all
+    //    sprouting from one flat line.
+    //
+    // Modelled on GOLEM'S HOLLOW, the one arena whose geometry its boss's
+    // mechanic depends on — and, not coincidentally, the best fight in the game.
     name: "COATL'S LAIR",
     meta: { boss: 'coatl' },
     map: mk(48, {
       0:  [[0, BR(48)]],
       1:  [[0, BR(48)]],
-      6:  [[20, 'oooooooo']],
-      8:  [[6, 'U']],
-      10: [[36, 'X'], [44, '####']],
-      11: [[4, 'P'], [42, '######']],
+      4:  [[21, 'oooo']],
+      8:  [[24, 'U']],
+      9:  [[2, G(6)], [40, G(6)]],
+      10: [[2, G(6)], [17, '||'], [30, '||'], [36, 'X'], [40, G(6)]],
+      11: [[2, G(6)], [10, 'P'], [17, '||'], [30, '||'], [40, G(6)]],
       12: [[0, G(48)]],
       13: [[0, G(48)]],
       14: [[0, G(48)]],

@@ -93,8 +93,14 @@ export const world7 = [
     }),
   },
   {
-    // A vast flooded trench, open water from wall to wall — nowhere to hide
-    // from the serpent circling in the deep.
+    // A drowned trench with something to hold onto. The rock spires are the
+    // point: the vortex drags you in with a steady pull, and bracing against
+    // solid geometry kills that pull dead — so the spires are cover you can
+    // actually wedge behind instead of open water with nothing in it.
+    //
+    // Pearls spawn at fixed spots (6 tiles in from each side, 5 tiles up), and
+    // the phase-3 geysers vent 4 tiles in from each edge, so those four columns
+    // are deliberately left clear.
     name: "LEVIATHAN'S TRENCH",
     meta: { water: true, boss: 'leviathan' },
     map: mk(48, {
@@ -103,7 +109,8 @@ export const world7 = [
       6:  [[6, 'U']],
       8:  [[22, 'oooo']],
       10: [[34, 'X']],
-      12: [[3, 'P'], [42, 'oo']],
+      11: [[14, '||'], [31, '||']],
+      12: [[3, 'P'], [14, '||'], [31, '||'], [42, 'oo']],
       13: [[0, G(48)]],
       14: [[0, G(48)]],
     }),

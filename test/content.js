@@ -9,6 +9,7 @@
 import { LEVELS } from '../src/levels/index.js';
 import { Level } from '../src/level.js';
 import { TILE_CHARS, BLOCK_CHARS, SPAWN_CHARS } from '../src/level.js';
+import { TILE } from '../src/constants.js';
 import { ENEMY_FACTORY } from '../src/enemies.js';
 
 const out = [];
@@ -91,6 +92,58 @@ const label = (world, li, def) => `${world + 1}-${li + 1} ${def.name}`;
   const unhandled = [...SPAWN_CHARS].filter(c => !ENEMY_FACTORY[c] && !SPECIAL.has(c));
   check('every SPAWN_CHARS letter has a handler', unhandled.length === 0,
     unhandled.join(', '));
+}
+
+// --- 5. floorYAt finds the floor, not the ceiling --------------------------
+// Bosses anchor erupting columns, floor beams and dive-crash checks with
+// floorYAt. Nearly every arena is roofed with brick (BR(n) => T_BRICK, which is
+// solid), so a query that scans from the top of the level finds the *ceiling*
+// and vents geysers out of the sky. Asked from mid-arena, every column must
+// report a surface somewhere below the roof.
+//
+// (Note "below the roof", not "near the ground": a Q block hanging at row 7 is
+// a legitimate standable surface and floorYAt is right to report it. The Kernel
+// deliberately rides its floor beam on whatever is under the player.)
+const ROOF_Y = 2 * TILE;
+{
+  const bad = [];
+  for (const { world, li, def } of LEVELS) {
+    if (!isBossLevel(def)) continue;
+    const lv = new Level(def, world, li);
+    for (const fx of [0.1, 0.25, 0.5, 0.75, 0.9]) {
+      const x = lv.pxWidth * fx;
+      const y = lv.floorYAt(x, lv.pxHeight / 2); // query from mid-arena
+      if (y <= ROOF_Y) bad.push(`${label(world, li, def)} @x=${x.toFixed(0)} -> y=${y}`);
+    }
+  }
+  check('boss arenas never anchor an attack to the roof', bad.length === 0, bad.join(', '));
+}
+
+// Where the bosses actually query from — their own feet, near the floor — the
+// answer must be the real ground.
+{
+  const bad = [];
+  for (const { world, li, def } of LEVELS) {
+    if (!isBossLevel(def)) continue;
+    const lv = new Level(def, world, li);
+    for (let tx = 1; tx < lv.w - 1; tx++) {
+      const y = lv.floorYAt(tx * TILE, lv.pxHeight - 3 * TILE);
+      if (y >= lv.pxHeight) bad.push(`${label(world, li, def)} @tx=${tx} has no floor`);
+    }
+  }
+  check('every boss arena column has a floor underfoot', bad.length === 0,
+    bad.slice(0, 4).join(', '));
+}
+
+// Sanity: the query must actually find the brick roof when asked from the top,
+// which is exactly why callers have to pass a sensible fromY.
+{
+  const arena = LEVELS.find(l => isBossLevel(l.def));
+  const lv = new Level(arena.def, arena.world, arena.li);
+  const fromTop = lv.floorYAt(lv.pxWidth / 2, 0);
+  const fromMid = lv.floorYAt(lv.pxWidth / 2, lv.pxHeight / 2);
+  check('floorYAt(x, 0) finds the roof — hence the required fromY',
+    fromTop < fromMid, `fromTop=${fromTop} fromMid=${fromMid}`);
 }
 
 // --- report ----------------------------------------------------------------

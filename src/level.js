@@ -483,6 +483,29 @@ export class Level {
     return null;
   }
 
+  // Y of the first standable surface at or below `fromY`, at world-x `x`.
+  // Falls back to the bottom of the level if there's nothing to stand on.
+  //
+  // Bosses use this to place ground-anchored attacks (erupting columns, floor
+  // beams, dive-crash checks). They all used to hardcode `pxHeight - 3 * TILE`
+  // instead — an unwritten, unenforced invariant that every arena's floor sits
+  // at exactly tile row 12, which is *why* every arena is a flat 48x15 box.
+  // Give an arena a terrace with that hardcode in place and the flame pillars
+  // erupt out of thin air.
+  //
+  // `fromY` is required, and must be a point already in open space — typically
+  // the querying entity's own y. Nearly every arena is roofed with brick, so
+  // scanning from 0 would find the *ceiling* and anchor the attack to the sky.
+  floorYAt(x, fromY) {
+    const tx = Math.floor(x / TILE);
+    if (tx < 0 || tx >= this.w) return this.pxHeight;
+    for (let ty = Math.max(0, Math.floor(fromY / TILE)); ty < this.h; ty++) {
+      const t = this.tileAt(tx, ty);
+      if (SOLID_TILES.has(t) || t === T_PLATFORM) return ty * TILE;
+    }
+    return this.pxHeight;
+  }
+
   update() {
     this.time++;
   }
