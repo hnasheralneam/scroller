@@ -128,6 +128,21 @@ const BG = {
   ruins: [0, 1].map(i => bakeRuin(i * 613 + 29)),
 };
 
+// How much of the camera's vertical travel the backdrop takes, in tall levels.
+const BG_PARALLAX_Y = 0.35;
+// Each world's sky, indexed like WORLDS. Matches the top stop of that world's
+// background gradient (or its flat fill, for the two unlit worlds); it fills in
+// above the backdrop once vertical parallax shifts it down.
+const SKY_TOP = [
+  '#7ec8f0', // meadows
+  '#0c0e1a', // caverns
+  '#3a7ac8', // sky
+  '#020604', // cyber
+  '#1a0a10', // keep
+  '#1c5a3a', // jungle
+  '#2a6aa8', // depths
+];
+
 // deterministic wrap-around scroll position
 function scrollX(base, offset, span) {
   return ((base - offset) % span + span) % span - 100;
@@ -556,15 +571,41 @@ export class Level {
     // Snap the camera to whole pixels for background parallax: the scene is a
     // low-res buffer scaled up nearest-neighbor, so a fractional camera makes
     // background edges crawl/shimmer. The bg* helpers only read cam.x.
-    cam = { x: Math.round(cam.x) };
+    const c = { x: Math.round(cam.x) };
     g.imageSmoothingEnabled = false;
-    if (w === 0) this.bgMeadows(g, cam);
-    else if (w === 1) this.bgCaverns(g, cam);
-    else if (w === 2) this.bgSky(g, cam);
-    else if (w === 3) this.bgCyber(g, cam);
-    else if (w === 4) this.bgKeep(g, cam);
-    else if (w === 5) this.bgJungle(g, cam);
-    else this.bgWater(g, cam);
+
+    // Vertical parallax for levels taller than the view.
+    //
+    // Every bg* helper is written in screen space against VIEW_H — the backdrop
+    // is a frame around the view, not a thing at a world position — so rather
+    // than thread y through ~500 lines of them, the whole backdrop is shifted
+    // and the strip it uncovers is painted with that world's sky.
+    //
+    // Anchored at the *bottom* of the level: there, offset is 0 and the
+    // backdrop is exactly what it has always been, so every one-screen-tall
+    // level renders bit-for-bit unchanged. Climbing pushes the horizon down and
+    // opens up sky above it, which is the way round that reads as height.
+    const scrollY = Math.max(0, this.pxHeight - VIEW_H);
+    const oy = scrollY > 0
+      ? Math.round((scrollY - Math.max(0, Math.min(cam.y, scrollY))) * BG_PARALLAX_Y)
+      : 0;
+
+    if (oy > 0) {
+      g.fillStyle = SKY_TOP[w];
+      g.fillRect(0, 0, VIEW_W, oy);
+      g.save();
+      g.translate(0, oy);
+    }
+
+    if (w === 0) this.bgMeadows(g, c);
+    else if (w === 1) this.bgCaverns(g, c);
+    else if (w === 2) this.bgSky(g, c);
+    else if (w === 3) this.bgCyber(g, c);
+    else if (w === 4) this.bgKeep(g, c);
+    else if (w === 5) this.bgJungle(g, c);
+    else this.bgWater(g, c);
+
+    if (oy > 0) g.restore();
   }
 
   bgMeadows(g, cam) {

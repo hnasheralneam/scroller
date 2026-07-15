@@ -5,11 +5,11 @@
 // was a real bug found by hand-parsing the maps; the check is the fix.
 //
 // Deliberately does NOT re-check what test/headless.js already validates
-// (map height, ragged widths, X/F/P presence, footing under P).
+// (map height bounds, ragged widths, X/F/P presence, footing under P).
 import { LEVELS } from '../src/levels/index.js';
 import { Level } from '../src/level.js';
 import { TILE_CHARS, BLOCK_CHARS, SPAWN_CHARS } from '../src/level.js';
-import { TILE } from '../src/constants.js';
+import { TILE, VIEW_H } from '../src/constants.js';
 import { ENEMY_FACTORY } from '../src/enemies.js';
 
 const out = [];
@@ -144,6 +144,23 @@ const ROOF_Y = 2 * TILE;
   const fromMid = lv.floorYAt(lv.pxWidth / 2, lv.pxHeight / 2);
   check('floorYAt(x, 0) finds the roof — hence the required fromY',
     fromTop < fromMid, `fromTop=${fromTop} fromMid=${fromMid}`);
+}
+
+// --- 6. the vertical axis is actually used ---------------------------------
+// mk() takes a height and camera.clampY works, but for a long time every level
+// used the 15-tile default, so pxHeight === VIEW_H, camera.y was pinned at 0
+// and all the vertical camera logic was dead. If this ever goes back to zero,
+// that capability has silently rotted again.
+{
+  const tall = LEVELS.filter(({ def }) => def.map.length > VIEW_H / TILE);
+  check('at least one level uses the vertical axis', tall.length > 0);
+
+  // And a tall level must genuinely scroll: y clamps to pxHeight - VIEW_H.
+  const bad = tall.filter(({ world, li, def }) => {
+    const lv = new Level(def, world, li);
+    return lv.pxHeight - VIEW_H <= 0;
+  }).map(({ world, li, def }) => label(world, li, def));
+  check('tall levels can scroll vertically', bad.length === 0, bad.join(', '));
 }
 
 // --- report ----------------------------------------------------------------

@@ -106,7 +106,11 @@ import('../src/level.js').then(({ Level }) => {
     try {
       const lv = new Level(def, world, i);
       const issues = [];
-      if (def.map.length !== 15) issues.push(`height=${def.map.length}`);
+      // A level may be taller than the view (VINE ASCENT is 30), but never
+      // shorter: camera.clampY would collapse to 0 and leave dead space below
+      // the map. This used to assert `!== 15`, which was true of all 35 levels
+      // and quietly encoded the flat-world assumption as a rule.
+      if (def.map.length < 15) issues.push(`height=${def.map.length} (< view)`);
       const widths = new Set(def.map.map(r => r.length));
       if (widths.size !== 1) issues.push(`ragged widths ${[...widths]}`);
       const isBoss = !!def.meta.boss;

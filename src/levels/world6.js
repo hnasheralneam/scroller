@@ -65,25 +65,53 @@ export const world6 = [
     }),
   },
   {
-    // The great ascent to the shrine: a rising staircase of ruined terraces,
-    // howlers swinging over the climbs, idols guarding each landing.
+    // The one level in the game that goes UP.
+    //
+    // mk() has always taken a height and camera.clampY has always worked, but
+    // all 35 levels used the 15-tile default, so pxHeight === VIEW_H, camera.y
+    // was pinned at 0 forever, and the whole vertical axis sat unused. This is
+    // 30 tiles tall: two screens of switchback climb up a collapsed shrine
+    // shaft, and the level this one was always named for.
+    //
+    // The climb is one-way platforms on purpose — you jump up through them from
+    // underneath, so the route never bonks its own ceiling. The summit has to be
+    // real ground rather than a platform (Flag's pole scans down for solid tiles
+    // and would otherwise stretch 25 tiles to the floor), so it's set off to the
+    // left and taken from the side.
+    //
+    // Steps are 3 rows apart and <=2 columns offset, which is what test/reach.js
+    // derives as the real jump envelope. It BFSes this and proves the flag is
+    // reachable; note it does NOT model ceilings, so the headroom above each
+    // launch column is checked by hand.
     name: 'VINE ASCENT',
     meta: {},
-    map: mk(130, {
-      0:  [[0, BR(130)]],
-      1:  [[0, BR(130)]],
-      3:  [[46, '*']],
-      5:  [[70, 'w'], [126, 'F']],
-      6:  [[90, 'oo']],
-      7:  [[44, 'w'], [89, '%%%%']],
-      8:  [[30, '?'], [32, '?'], [104, 'oo'], [122, G(8)]],
-      9:  [[16, 'w'], [61, 'oo'], [114, 'j'], [116, G(14)]],
-      10: [[8, 'U'], [26, 'oo'], [40, 'e'], [60, '%%%%'], [66, G(12)], [106, 'j'], [108, G(22)]],
-      11: [[25, '%%%%'], [49, 'j'], [66, G(12)], [98, 'e'], [100, G(30)]],
-      12: [[3, 'P'], [12, 'e'], [20, 'C'], [36, G(10)], [66, G(12)], [74, 'e'], [86, 'C'], [92, G(38)]],
-      13: [[0, G(50)], [54, G(26)], [84, G(46)]],
-      14: [[0, G(50)], [54, G(26)], [84, G(46)]],
-    }),
+    map: mk(26, {
+      0:  [[0, BR(26)]],
+      1:  [[0, BR(26)]],
+      // summit shrine — solid ground, entered from the right
+      3:  [[6, 'F']],
+      4:  [[4, G(8)]],
+      6:  [[17, 'w']],
+      7:  [[12, '----'], [20, 'oo']],
+      9:  [[9, '?'], [11, '?']],
+      10: [[13, '----']],
+      12: [[22, '*']],
+      13: [[16, '----'], [8, 'oo']],
+      15: [[20, 'C'], [23, 'o']],
+      16: [[19, '----']],
+      18: [[15, 'j']],
+      19: [[14, '----']],
+      20: [[9, '??'], [18, 'oo']],
+      21: [[10, 'e']],
+      22: [[9, '----']],
+      23: [[16, 'oo']],
+      24: [[5, 'e']],
+      25: [[4, '----']],
+      26: [[10, 'U'], [19, 'oo']],
+      27: [[3, 'P'], [21, 'e']],
+      28: [[0, G(26)]],
+      29: [[0, G(26)]],
+    }, 30),
   },
   {
     // A collapsed shrine, not an empty box. Two things here are load-bearing:

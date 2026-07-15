@@ -33,7 +33,8 @@ python3 -m http.server 8000
 3. **Sky Islands** — wind gusts, bottomless pits, cloud turrets. Boss: **Storm Bird**
 4. **The Mainframe** — matrix rain, patrol drones, firewall lasers, proximity mines. Boss: **The Kernel**
 5. **Molten Keep** — lava, firebars, crumbling bridges, fire imps. Boss: **Flame King**
-6. **Jungle Ruins** — dart frogs, howlers, idol turrets. Boss: **Coatl**
+6. **Jungle Ruins** — dart frogs, howlers, idol turrets, and *Vine Ascent*, a
+   two-screen-tall switchback climb. Boss: **Coatl**
 7. **Sunken Depths** — fully underwater (swim physics!), pufferfish, jellyfish, snapperfish, urchins. Boss: **Abyssal Leviathan**
 
 Every boss is a multi-phase fight with an intro sequence and its own attack
